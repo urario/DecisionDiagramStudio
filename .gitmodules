@@ -1,0 +1,3 @@
+[submodule "lib/DecisionDiagramSharp"]
+	path = lib/DecisionDiagramSharp
+	url = https://github.com/urario/DecisionDiagramSharp.git

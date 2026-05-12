@@ -95,10 +95,10 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| IQ-06 | - | ステータスバーの「冗長ノード数」算出方法の決定: `TotalNodeCount - ReachableNodeCount` で代替するか、`GetReachableNodeViews()` を走査して Low==High を数えるかを調査・決定し `docs/architecture.md` G 節を更新する | `docs/architecture.md` の IQ-06 に決定事項が記載され、`AppDiagramStatistics` の `ReducedCount` の定義が確定している | 設計書レビュー | N/A（調査・設計） | N/A | 更新された設計書の差分 | N/A | N/A | Todo | - |
-| IQ-07 | - | SVG → WebView2 表示方式の検証: `NavigateToString` + CSP nonce vs virtual host mapping の実装難易度をプロトタイプで確認し、採用方式を `docs/architecture.md` ADR-008 に反映する | ADR-008 に最終決定方式とその根拠が記載され、プロトタイプコードまたはスパイクブランチが存在する | 設計書レビュー + プロトタイプ動作確認 | N/A（スパイク） | N/A | プロトタイプ動作確認の記録 | N/A | N/A | Todo | - |
-| IQ-08 | - | 「新規」ボタン時の `DecisionDiagramManager` 再生成有無の決定: 再生成（変数テーブルリセット）vs 非再生成（変数名蓄積を許容）のトレードオフを評価し設計書に記載する | `docs/architecture.md` の IQ-08 に決定事項が記載され、`DiagramService` の新規操作フローが明確になっている | 設計書レビュー | N/A（設計） | N/A | 更新された設計書の差分 | N/A | N/A | Todo | - |
-| IQ-09 | - | 変数名の許容文字セット確定: `[a-zA-Z_][a-zA-Z0-9_]*` のみか、Unicode 識別子（日本語変数名）も許可するかを、DOT エスケープとの整合を確認した上で決定する | `docs/architecture.md` の IQ-09 に採用パターンと判断根拠が記載されている | 設計書レビュー + DOT 手動確認 | N/A（設計） | N/A | 更新された設計書の差分 | N/A | N/A | Todo | - |
+| IQ-06 | - | ステータスバーの削減数定義の確定: 「Low==High 走査」および `TotalNodeCount - ReachableNodeCount` 代替は採用せず、`ReducedCount` を BDT→BDD の非終端ノード削減数として定義し `docs/architecture.md` へ反映する | `docs/architecture.md` の IQ-06 に決定事項が記載され、`AppDiagramStatistics` の `ReducedCount` の定義が確定している | 設計書レビュー | N/A（調査・設計） | N/A | 更新された設計書の差分 | N/A | N/A | Done | `docs/iq-06-09-architecture-investigation.md` の調査結果と 2026-05-13 の設計判断に基づき、`docs/architecture.md` B3.1 / ADR-009 / G 節へ反映。`ReducedCount = (2^VariableCount - 1) - ReachableNodeCount` と定義 |
+| IQ-07 | - | SVG → WebView2 表示方式の確定: `NavigateToString()` + 先頭 CSP meta + nonce を採用し、2 MB 超過または header CSP 必須時に in-memory custom response へ移行できる設計を `docs/architecture.md` ADR-008 に反映する | ADR-008 に最終決定方式、根拠、移行方針が記載されている | 設計書レビュー | N/A（スパイク） | N/A | 更新された設計書の差分 | N/A | N/A | Done | `NavigateToString()` + 先頭 CSP meta + nonce を採用し、2 MB 超過または header CSP 必須時に in-memory custom response へ移行する二段階方針を `docs/architecture.md` B9.2 / ADR-008 / G 節へ反映 |
+| IQ-08 | - | 「新規」ボタン時の `DecisionDiagramManager` ライフサイクル確定: New 時に再生成して変数テーブルをリセットする方針を設計書に記載する | `docs/architecture.md` の IQ-08 に決定事項が記載され、`DiagramService` の新規操作フローが明確になっている | 設計書レビュー | N/A（設計） | N/A | 更新された設計書の差分 | N/A | N/A | Done | New 時に `DiagramService` 内部の `DecisionDiagramManager` を再生成する方針を `docs/architecture.md` B3.2 / ADR-010 / G 節へ反映 |
+| IQ-09 | - | 変数名の許容文字セット確定: ASCII 識別子 `^[a-zA-Z_][a-zA-Z0-9_]*$` のみを許可し、日本語変数名を仕様から除外する方針を設計書に記載する | `docs/architecture.md` の IQ-09 に採用パターンと判断根拠が記載されている | 設計書レビュー | N/A（設計） | N/A | 更新された設計書の差分 | N/A | N/A | Done | ASCII 識別子 `^[a-zA-Z_][a-zA-Z0-9_]*$` のみ許可し、日本語変数名は仕様から除外する方針を `docs/architecture.md` B9.4 / ADR-011 / G 節へ反映 |
 
 ---
 
@@ -108,7 +108,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | MODEL-001 | - | `DiagramFamily` 列挙型の実装: `BDD`, `ZDD`, `MTBDD`, `ZMTBDD` の4値 | `DiagramFamily` が4値を持ち、ビルドが通る | コンパイル確認 | N/A（純粋定義） | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
 | MODEL-002 | - | `AppDiagramStatistics` レコードの実装: `ReachableNodeCount`, `ReachableTerminalCount`, `TotalNodeCount`, `VariableCount`, `BdtNodeCount`, `ReducedCount`, `SetCount` | 全フィールドが設計書 B3.1 の型定義と一致し、ビルドが通る | コンパイル + コードレビュー | N/A（純粋定義） | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
-| MODEL-003 | MODEL-002 | `AppDiagramStatistics` の BDD 用ファクトリメソッド `ForBdd(DiagramStatistics)` の実装: `BdtNodeCount = 2^(VariableCount+1) - 1`, `ReducedCount = BdtNodeCount - ReachableNodeCount` を算出する | 2変数BDD（VariableCount=2）の入力で `BdtNodeCount=7`, `ReducedCount` が正しく算出される | ユニットテスト | Yes | `ForBdd_VariableCount2_ShouldReturn_BdtNodeCount7` が失敗するテスト出力 | 同テストの合格出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| MODEL-003 | MODEL-002 | `AppDiagramStatistics` の BDD 用ファクトリメソッド `ForBdd(DiagramStatistics)` の実装: `BdtNodeCount = 2^VariableCount - 1`, `ReducedCount = BdtNodeCount - ReachableNodeCount` を算出する | 2変数BDD（VariableCount=2）の入力で `BdtNodeCount=3`, `ReducedCount` が正しく算出される | ユニットテスト | Yes | `ForBdd_VariableCount2_ShouldReturn_BdtNodeCount3` が失敗するテスト出力 | 同テストの合格出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
 | MODEL-004 | MODEL-002 | `AppDiagramStatistics` の ZDD 用ファクトリメソッド `ForZdd(DiagramStatistics, long setCount)` の実装 | `SetCount` フィールドに引数の `setCount` が格納されること | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
 | MODEL-005 | - | `DiagramSession` レコードの実装: `Family`, `VariableNames`, `VariableOrder`, `IntValueTable?`, `SetInput?`, `DotText`, `Statistics`, `IsEmpty`, `LastModified` | 全フィールドが設計書 B3.1 の型定義と一致し、ビルドが通る。`IsEmpty` は `string.IsNullOrEmpty(DotText)` で実装されている | コンパイル + コードレビュー | N/A（純粋定義） | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
 | MODEL-006 | - | `DiagramPreset` レコードの実装: `Id`, `Label`, `Description`, `VariableNames`, `TruthTableValues`, `DefaultFamily` | 設計書 B3.1 の型定義と一致し、ビルドが通る | コンパイル確認 | N/A（純粋定義） | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
@@ -167,7 +167,7 @@
 | VM-BDD-002 | VM-BDD-001 | `SelectPresetCommand` の実装: `PresetService.GetPreset()` → `ChangeTruthTableCommand` → `CommandStack.Push` → `DiagramService.BuildAsync` の一連のフロー | プリセット選択後に `CurrentSession.DotText` が非空の DOT 文字列になる | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
 | VM-BDD-003 | VM-BDD-001 | TT セル変更時のデバウンス実装: セル変更から 300ms 後に `BuildAsync` が実行され、連続変更時は前の `CancellationTokenSource.Cancel()` を呼ぶ | 100ms 間隔で3回 TT 変更を行った場合、`BuildAsync` が1回だけ呼ばれることをモックで確認 | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
 | VM-BDD-004 | - | `DiagramPanelViewModel` の実装: `SvgContent`, `DotText`, `IsReduced`, `ToggleReductionCommand`, `[BDD専用] BDTボタン表示制御` | BDD セッションで `ToggleReductionCommand` を実行すると `IsReduced` が切り替わり、ZDD セッションではボタンが非表示になる | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| VM-BDD-005 | - | `StatisticsViewModel` の実装: `DiagramSession.Statistics` を受け取り `ReachableNodeCount`, `TotalNodeCount`, `ReducedCount`（IQ-06 解決後）等の表示プロパティを持つ | `Session` プロパティを更新すると全表示プロパティが連動して更新される | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| VM-BDD-005 | - | `StatisticsViewModel` の実装: `DiagramSession.Statistics` を受け取り `ReachableNodeCount`, `TotalNodeCount`, `ReducedCount` 等の表示プロパティを持つ。`ReducedCount` は BDT→BDD の非終端ノード削減数として表示する | `Session` プロパティを更新すると全表示プロパティが連動して更新される | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
 | VM-BDD-006 | - | `ExplanationViewModel` の骨格実装: `SelectNode(nodeId, session)` でノード選択状態を保持し、解説テキスト `ExplanationText` を生成する（v0.1 は簡易テキスト） | `SelectNode("n1", session)` 呼び出し後に `ExplanationText` が非空になる | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
 
 ---
@@ -178,8 +178,8 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | VIEW-BDD-001 | - | `MainWindow.xaml` の実装: `NavigationView` ホストで WorkbenchPage を初期ページとして表示する | アプリ起動後に WorkbenchPage が表示され、ナビゲーションが動作する | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A（UI コード除外） | N/A | Todo | - |
 | VIEW-BDD-002 | VIEW-BDD-001 | `WorkbenchPage.xaml` の実装: 変数名入力エリア、真理値表グリッド（BDD用）、ファミリーラジオボタン（ZDD/MTBDD/ZMTBDD はグレーアウト）、プリセットボタン一覧 | v0.1 のすべての UI 要素が表示され、ViewModel へのバインディングが機能する | 手動動作確認（プリセット選択→表示更新） | N/A（UI） | N/A | 動作確認スクリーンショット | N/A（UI コード除外） | N/A | Todo | - |
-| VIEW-BDD-003 | VIEW-BDD-001 | `WorkbenchPage` の WebView2 埋め込みと SVG 表示実装（IQ-07 の決定方式に従う） | BDD を構築すると WebView2 に SVG グラフが表示される | 手動動作確認 | N/A（UI） | N/A | SVG 表示スクリーンショット | N/A（UI コード除外） | N/A | Blocked | IQ-07 の解決待ち |
-| VIEW-BDD-004 | VIEW-BDD-001 | ステータスバーの実装: ノード数・削減数等を表示する `InfoBar` / ステータスストリップ | BDD 構築後に統計値（ノード数等）がステータスバーに表示される | 手動動作確認 | N/A（UI） | N/A | 表示スクリーンショット | N/A（UI コード除外） | N/A | Blocked | IQ-06 の解決待ち |
+| VIEW-BDD-003 | VIEW-BDD-001 | `WorkbenchPage` の WebView2 埋め込みと SVG 表示実装（IQ-07 の決定方式に従う） | BDD を構築すると WebView2 に SVG グラフが表示される | 手動動作確認 | N/A（UI） | N/A | SVG 表示スクリーンショット | N/A（UI コード除外） | N/A | Todo | IQ-07 解決済み。`NavigateToString()` + 先頭 CSP meta + nonce 方針に従う |
+| VIEW-BDD-004 | VIEW-BDD-001 | ステータスバーの実装: ノード数・削減数等を表示する `InfoBar` / ステータスストリップ | BDD 構築後に統計値（ノード数等）がステータスバーに表示される | 手動動作確認 | N/A（UI） | N/A | 表示スクリーンショット | N/A（UI コード除外） | N/A | Todo | IQ-06 解決済み。`ReducedCount` は BDT→BDD の非終端ノード削減数 |
 | VIEW-BDD-005 | VIEW-BDD-001 | エラー表示の `InfoBar` 実装: `ArgumentException`（変数名不正）・`GraphvizNotFoundException`・`BdtVariableLimitException` 等を B8.1 のフローに従い表示する | 不正変数名入力時に赤 `InfoBar` が表示される | 手動動作確認 | N/A（UI） | N/A | エラー表示スクリーンショット | N/A（UI コード除外） | N/A | Todo | - |
 | VIEW-BDD-006 | VIEW-BDD-001 | [削減前(BDT)] / [削減後] トグルボタンの実装: BDD ファミリー選択時のみ表示し、クリックで `DiagramPanelViewModel.ToggleReductionCommand` を呼ぶ | BDD 選択時にボタンが表示され、ZDD 選択時に非表示になる | 手動動作確認 | N/A（UI） | N/A | 表示/非表示スクリーンショット | N/A（UI コード除外） | N/A | Todo | - |
 
@@ -190,7 +190,7 @@
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | SEC-001 | SVC-BDD-003 | 変数名バリデーションのセキュリティテスト: `<script>`, `"; DROP TABLE`, `../`, `\n`, null 文字を含む入力が `ArgumentException` でブロックされる | 設計書 B9.4 の全ての拒否パターンが `ArgumentException` をスローする | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100%、分岐 100% | カバレッジレポート | Todo | - |
-| SEC-002 | VIEW-BDD-003 | WebView2 CSP 設定の実装と検証: `script-src nonce-{random}` が SVG 表示リクエストに適用され、`<script>` タグが含まれる DOT から生成された SVG でもスクリプトが実行されない | 手動テスト: `<script>alert(1)</script>` を含む DOT テキストをレンダリングしてアラートが表示されないことを確認 | 手動セキュリティテスト | N/A | N/A | テスト実行記録（アラート非表示確認） | N/A | N/A | Blocked | IQ-07 の解決待ち |
+| SEC-002 | VIEW-BDD-003 | WebView2 CSP 設定の実装と検証: `NavigateToString()` で読み込む HTML の先頭 CSP meta に `script-src nonce-{random}` が設定され、`<script>` タグが含まれる DOT から生成された SVG でも nonce なしスクリプトが実行されない | 手動テスト: `<script>alert(1)</script>` を含む DOT テキストをレンダリングしてアラートが表示されないことを確認 | 手動セキュリティテスト | N/A | N/A | テスト実行記録（アラート非表示確認） | N/A | N/A | Todo | IQ-07 解決済み。2 MB 超過または header CSP 必須時は in-memory custom response へ移行 |
 | SEC-003 | VIEW-BDD-003 | `postMessage` スキーマ検証の実装: `type`, `nodeId`, `variableName`, `nodeType` の各フィールドを設計書 B5 のパターンで検証し、不正なメッセージをサイレントに無視する | 不正 JSON (`{"type": "exec", "cmd": "rm -rf /"}`) を送信した場合に `ExplanationViewModel.ExplanationText` が変化しない | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
 
 ---

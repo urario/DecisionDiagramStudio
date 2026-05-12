@@ -1,0 +1,12 @@
+<Window
+    x:Class="DecisionDiagramStudio.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Decision Diagram Studio">
+    <Grid>
+        <TextBlock
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Text="Decision Diagram Studio"/>
+    </Grid>
+</Window>

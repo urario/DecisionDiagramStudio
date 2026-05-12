@@ -1,0 +1,20 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/lib/" />
+  <Folder Name="/lib/DecisionDiagramSharp/" />
+  <Folder Name="/lib/DecisionDiagramSharp/src/">
+    <Project Path="lib/DecisionDiagramSharp/src/DecisionDiagramSharp.Core/DecisionDiagramSharp.Core.csproj" />
+    <Project Path="lib/DecisionDiagramSharp/src/DecisionDiagramSharp.Diagnostics/DecisionDiagramSharp.Diagnostics.csproj" />
+    <Project Path="lib/DecisionDiagramSharp/src/DecisionDiagramSharp.Export/DecisionDiagramSharp.Export.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/DecisionDiagramStudio/DecisionDiagramStudio.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DecisionDiagramStudio.Tests/DecisionDiagramStudio.Tests.csproj" />
+  </Folder>
+</Solution>

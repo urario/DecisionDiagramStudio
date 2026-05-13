@@ -1,3 +1,6 @@
+using DecisionDiagramSharp;
+using DecisionDiagramStudio.Services;
+using DecisionDiagramStudio.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
@@ -31,6 +34,9 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        services.AddSingleton(new DecisionDiagramOptions());
+        services.AddSingleton<IDiagramService, DiagramService>();
+
         services.AddLogging(logging =>
         {
             logging.AddDebug();

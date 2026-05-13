@@ -26,5 +26,6 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\DecisionDiagramStudio\Models\**\*.cs" LinkBase="Models" />
+    <Compile Include="..\..\src\DecisionDiagramStudio\Services\**\*.cs" LinkBase="Services" />
   </ItemGroup>
 </Project>

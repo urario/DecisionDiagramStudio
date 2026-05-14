@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="MSTest" Version="3.7.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="coverlet.collector" Version="6.0.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -28,6 +29,7 @@
     <Compile Include="..\..\src\DecisionDiagramStudio\Models\**\*.cs" LinkBase="Models" />
     <Compile Include="..\..\src\DecisionDiagramStudio\Services\**\*.cs" LinkBase="Services" />
     <Compile Include="..\..\src\DecisionDiagramStudio\Commands\**\*.cs" LinkBase="Commands" />
+    <Compile Include="..\..\src\DecisionDiagramStudio\ViewModels\**\*.cs" LinkBase="ViewModels" />
     <Content Include="..\..\src\DecisionDiagramStudio\Assets\Presets\presets.json" Link="Assets\Presets\presets.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

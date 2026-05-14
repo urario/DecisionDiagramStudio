@@ -1,6 +1,7 @@
 using DecisionDiagramSharp;
 using DecisionDiagramStudio.Services;
 using DecisionDiagramStudio.Services.Interfaces;
+using DecisionDiagramStudio.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
@@ -39,6 +40,10 @@ public partial class App : Application
         services.AddSingleton<IGraphvizService, GraphvizService>();
         services.AddSingleton<IPresetService, PresetService>();
         services.AddSingleton<Commands.CommandStack>();
+        services.AddSingleton<WorkbenchViewModel>();
+        services.AddSingleton<DiagramPanelViewModel>();
+        services.AddSingleton<StatisticsViewModel>();
+        services.AddSingleton<ExplanationViewModel>();
 
         services.AddLogging(logging =>
         {

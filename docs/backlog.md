@@ -134,9 +134,9 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SVC-GV-001 | - | `IGraphvizService` インターフェースの定義: `RenderSvgAsync(string dotText, CancellationToken ct) Task<string>`, `IsAvailable() bool` | インターフェースが `Services/Interfaces/IGraphvizService.cs` に存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
-| SVC-GV-002 | SVC-GV-001 | `GraphvizService.RenderSvgAsync` の実装: DOT テキストを `dot.exe` の stdin に渡し、stdout から SVG を取得する。`dot.exe` は stdout/stdin のみ使用（引数にユーザー入力を含めない）。タイムアウト 30 秒 | 既知の簡単な DOT テキスト（`digraph G { a -> b }`）を渡して SVG（`<svg` で始まる文字列）が返却される | 統合テスト（実 Graphviz 使用、CI 環境スキップ可） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| SVC-GV-003 | SVC-GV-002 | `GraphvizService` のフォールバック: `dot.exe` が見つからない場合は `GraphvizNotFoundException` をスローする。タイムアウト時は `GraphvizTimeoutException` をスローする | 無効パスを設定した場合に `GraphvizNotFoundException` がスローされることをモックで確認 | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| SVC-GV-001 | - | `IGraphvizService` インターフェースの定義: `RenderSvgAsync(string dotText, CancellationToken ct) Task<string>`, `IsAvailable() bool` | インターフェースが `Services/Interfaces/IGraphvizService.cs` に存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Done | `Services/Interfaces/IGraphvizService.cs` を追加。VS MSBuild `DecisionDiagramStudio.csproj /p:Platform=x64 /v:minimal` 成功 |
+| SVC-GV-002 | SVC-GV-001 | `GraphvizService.RenderSvgAsync` の実装: DOT テキストを `dot.exe` の stdin に渡し、stdout から SVG を取得する。`dot.exe` は stdout/stdin のみ使用（引数にユーザー入力を含めない）。タイムアウト 30 秒 | 既知の簡単な DOT テキスト（`digraph G { a -> b }`）を渡して SVG（`<svg` で始まる文字列）が返却される | 統合テスト（実 Graphviz 使用、CI 環境スキップ可） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `GraphvizService.RenderSvgAsync` を追加。stdin/stdout + `ArgumentList("-Tsvg")` でユーザー入力を引数に含めない。`dotnet test` 46/46 合格、実 Graphviz テストは `IsAvailable()` false の環境ではスキップ |
+| SVC-GV-003 | SVC-GV-002 | `GraphvizService` のフォールバック: `dot.exe` が見つからない場合は `GraphvizNotFoundException` をスローする。タイムアウト時は `GraphvizTimeoutException` をスローする | 無効パスを設定した場合に `GraphvizNotFoundException` がスローされることをモックで確認 | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `GraphvizNotFoundException` / `GraphvizTimeoutException` を追加。`RenderSvgAsync_InvalidPath_ShouldThrow_GraphvizNotFoundException` 合格 |
 
 ---
 
@@ -144,8 +144,8 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SVC-PS-001 | - | `IPresetService` インターフェースの定義と `PresetService` の骨格実装 | インターフェースと実装クラスが存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
-| SVC-PS-002 | SVC-PS-001 | `Assets/Presets/presets.json` の作成と BDD 学習用プリセット（最低4件）の定義: `f = a`, `f = a AND b`, `f = a OR b`, `f = a XOR b` | `PresetService.GetPreset(id)` が4件のプリセットをそれぞれ返し、`VariableNames` と `TruthTableValues` が正しい値を持つ | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| SVC-PS-001 | - | `IPresetService` インターフェースの定義と `PresetService` の骨格実装 | インターフェースと実装クラスが存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Done | `Services/Interfaces/IPresetService.cs` と `Services/PresetService.cs` を追加。VS MSBuild 成功 |
+| SVC-PS-002 | SVC-PS-001 | `Assets/Presets/presets.json` の作成と BDD 学習用プリセット（最低4件）の定義: `f = a`, `f = a AND b`, `f = a OR b`, `f = a XOR b` | `PresetService.GetPreset(id)` が4件のプリセットをそれぞれ返し、`VariableNames` と `TruthTableValues` が正しい値を持つ | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `presets.json` に `f = a`, `AND`, `OR`, `XOR` の4件を定義。`GetPreset_RequiredBddLearningPresets_ShouldReturnExpectedTruthTables` 合格 |
 
 ---
 
@@ -153,9 +153,9 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| CMD-001 | - | `IUndoableCommand` インターフェースの定義: `Execute()`, `Undo()` | インターフェースが `Commands/IUndoableCommand.cs` に存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
-| CMD-002 | CMD-001 | `CommandStack` クラスの実装: `Push(IUndoableCommand)`, `Undo()`, `Redo()`, 上限 50 件（超過時は最古を削除）、`CanUndo`, `CanRedo` プロパティ | Push/Undo/Redo の連鎖が正しく動作し、51件目のプッシュで最古エントリが削除される | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100%、Undo/Redo パス 100% | カバレッジレポート | Todo | - |
-| CMD-003 | CMD-001 | `ChangeTruthTableCommand` の実装: 変更前後の `int[]` スナップショットを保持し、`Execute`/`Undo` で `DiagramService.BuildAsync` を呼ぶ | `Execute` → `Undo` → `Execute` で `DiagramSession` が各状態と一致する | ユニットテスト（モック DiagramService） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| CMD-001 | - | `IUndoableCommand` インターフェースの定義: `Execute()`, `Undo()` | インターフェースが `Commands/IUndoableCommand.cs` に存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Done | `Commands/IUndoableCommand.cs` を追加。VS MSBuild 成功 |
+| CMD-002 | CMD-001 | `CommandStack` クラスの実装: `Push(IUndoableCommand)`, `Undo()`, `Redo()`, 上限 50 件（超過時は最古を削除）、`CanUndo`, `CanRedo` プロパティ | Push/Undo/Redo の連鎖が正しく動作し、51件目のプッシュで最古エントリが削除される | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100%、Undo/Redo パス 100% | カバレッジレポート | Done | `Commands/CommandStack.cs` を追加。`CommandStackTests` 12ケース合格、51件目 Push で最古削除を検証 |
+| CMD-003 | CMD-001 | `ChangeTruthTableCommand` の実装: 変更前後の `int[]` スナップショットを保持し、`Execute`/`Undo` で `DiagramService.BuildAsync` を呼ぶ | `Execute` → `Undo` → `Execute` で `DiagramSession` が各状態と一致する | ユニットテスト（モック DiagramService） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `ChangeTruthTableCommand` を追加。`ExecuteUndoExecute_ShouldApplyAfterBeforeAfterSnapshots` 合格 |
 
 ---
 
@@ -201,7 +201,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | TEST-BDD-001 | SVC-BDD-004 | `DiagramServiceTests` の統合テスト: `BuildBddFromTruthTable` を実際の `DecisionDiagramSharp` ライブラリで実行し、1〜4変数の全真理値表パターンで往復確認（`BuildTruthTable` で逆変換して一致確認） | 全テストケース（1変数: 4通り, 2変数: 16通り, 3変数: 256通り, 4変数: 65536通り）が合格する | 統合テスト（実ライブラリ使用） | Yes | 失敗テスト出力 | 合格テスト出力 | `BuildBddFromTruthTable` メソッド 100% | カバレッジレポート | Todo | - |
 | TEST-BDD-002 | SVC-BDD-007 | `DiagramService.GetBdtDotAsync` のテスト: 変数数1〜10で `2^(n+1)-1` ノード数の DOT テキストが生成され、変数数11で例外がスローされる | 各変数数のノード数が DOT テキスト内のノード定義行数と一致する | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100%、分岐 100% | カバレッジレポート | Todo | - |
-| TEST-BDD-003 | CMD-002 | `CommandStackTests`: Push/Undo/Redo の連鎖、50件上限、`CanUndo`/`CanRedo` 状態遷移 | 全12ケース（正常系・境界値・上限超過）が合格する | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | `CommandStack` メソッド 100%、分岐 100% | カバレッジレポート | Todo | - |
+| TEST-BDD-003 | CMD-002 | `CommandStackTests`: Push/Undo/Redo の連鎖、50件上限、`CanUndo`/`CanRedo` 状態遷移 | 全12ケース（正常系・境界値・上限超過）が合格する | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | `CommandStack` メソッド 100%、分岐 100% | カバレッジレポート | Done | `tests/DecisionDiagramStudio.Tests/Commands/CommandStackTests.cs` を追加。12/12 合格、全体 `dotnet test` 46/46 合格 |
 | TEST-BDD-004 | - | v0.1 完了基準チェック: `dotnet test` が全テスト合格であり、4変数以下の TT 変更→SVG 表示が手動で 300ms 以内に完了する | テスト合格ログ + 手動パフォーマンス計測結果（Graphviz warm 条件） | 統合確認 | N/A | N/A | テスト合格ログ + パフォーマンス記録 | N/A | N/A | Todo | - |
 
 ---

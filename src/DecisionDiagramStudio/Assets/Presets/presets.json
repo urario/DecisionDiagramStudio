@@ -1,1 +1,34 @@
-[]
+[
+  {
+    "id": "bdd.identity.a",
+    "label": "f = a",
+    "description": "One-variable identity function.",
+    "variableNames": [ "a" ],
+    "truthTableValues": [ 0, 1 ],
+    "defaultFamily": "BDD"
+  },
+  {
+    "id": "bdd.and",
+    "label": "f = a AND b",
+    "description": "Two-variable conjunction.",
+    "variableNames": [ "a", "b" ],
+    "truthTableValues": [ 0, 0, 0, 1 ],
+    "defaultFamily": "BDD"
+  },
+  {
+    "id": "bdd.or",
+    "label": "f = a OR b",
+    "description": "Two-variable disjunction.",
+    "variableNames": [ "a", "b" ],
+    "truthTableValues": [ 0, 1, 1, 1 ],
+    "defaultFamily": "BDD"
+  },
+  {
+    "id": "bdd.xor",
+    "label": "f = a XOR b",
+    "description": "Two-variable exclusive disjunction.",
+    "variableNames": [ "a", "b" ],
+    "truthTableValues": [ 0, 1, 1, 0 ],
+    "defaultFamily": "BDD"
+  }
+]

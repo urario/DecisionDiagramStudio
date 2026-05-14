@@ -36,6 +36,9 @@ public partial class App : Application
     {
         services.AddSingleton(new DecisionDiagramOptions());
         services.AddSingleton<IDiagramService, DiagramService>();
+        services.AddSingleton<IGraphvizService, GraphvizService>();
+        services.AddSingleton<IPresetService, PresetService>();
+        services.AddSingleton<Commands.CommandStack>();
 
         services.AddLogging(logging =>
         {

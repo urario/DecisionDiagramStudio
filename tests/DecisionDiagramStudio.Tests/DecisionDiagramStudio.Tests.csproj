@@ -10,9 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="MSTest" Version="3.7.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="2.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="coverlet.collector" Version="6.0.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -29,6 +33,7 @@
     <Compile Include="..\..\src\DecisionDiagramStudio\Models\**\*.cs" LinkBase="Models" />
     <Compile Include="..\..\src\DecisionDiagramStudio\Services\**\*.cs" LinkBase="Services" />
     <Compile Include="..\..\src\DecisionDiagramStudio\Commands\**\*.cs" LinkBase="Commands" />
+    <Compile Include="..\..\src\DecisionDiagramStudio\Infrastructure\**\*.cs" LinkBase="Infrastructure" />
     <Compile Include="..\..\src\DecisionDiagramStudio\ViewModels\**\*.cs" LinkBase="ViewModels" />
     <Content Include="..\..\src\DecisionDiagramStudio\Assets\Presets\presets.json" Link="Assets\Presets\presets.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

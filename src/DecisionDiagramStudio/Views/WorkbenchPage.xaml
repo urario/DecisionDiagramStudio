@@ -1,0 +1,229 @@
+<Page
+    x:Class="DecisionDiagramStudio.Views.WorkbenchPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:DecisionDiagramStudio.Models"
+    xmlns:vm="using:DecisionDiagramStudio.ViewModels"
+    Loaded="Page_Loaded"
+    Unloaded="Page_Unloaded"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <InfoBar
+            x:Name="ErrorInfoBar"
+            Margin="16,12,16,0"
+            IsClosable="True"
+            IsOpen="False"
+            Severity="Error"
+            Title="Error"/>
+
+        <Grid
+            Grid.Row="1"
+            Padding="16"
+            ColumnDefinitions="360,*"
+            ColumnSpacing="16">
+            <ScrollViewer
+                Grid.Column="0"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16">
+                    <Border
+                        Padding="14"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <StackPanel Spacing="10">
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="Input"/>
+                            <TextBox
+                                Header="Variables"
+                                PlaceholderText="a, b, c"
+                                Text="{x:Bind ViewModel.VariableNamesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button
+                                HorizontalAlignment="Stretch"
+                                Command="{x:Bind ViewModel.ApplyVariableNamesCommand}"
+                                Content="Apply variables"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Padding="14"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <StackPanel Spacing="10">
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="Family"/>
+                            <StackPanel Spacing="4">
+                                <RadioButton
+                                    Content="BDD"
+                                    GroupName="DiagramFamily"
+                                    IsChecked="True"/>
+                                <RadioButton
+                                    Content="ZDD"
+                                    GroupName="DiagramFamily"
+                                    IsEnabled="False"/>
+                                <RadioButton
+                                    Content="MTBDD"
+                                    GroupName="DiagramFamily"
+                                    IsEnabled="False"/>
+                                <RadioButton
+                                    Content="ZMTBDD"
+                                    GroupName="DiagramFamily"
+                                    IsEnabled="False"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Padding="14"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <StackPanel Spacing="10">
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="Presets"/>
+                            <ListView
+                                MaxHeight="220"
+                                ItemsSource="{x:Bind ViewModel.Presets, Mode=OneWay}"
+                                SelectionMode="None">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="models:DiagramPreset">
+                                        <Button
+                                            Margin="0,0,0,6"
+                                            HorizontalAlignment="Stretch"
+                                            Click="PresetButton_Click"
+                                            Tag="{x:Bind Id}">
+                                            <StackPanel>
+                                                <TextBlock
+                                                    FontWeight="SemiBold"
+                                                    Text="{x:Bind Label}"/>
+                                                <TextBlock
+                                                    Opacity="0.72"
+                                                    Text="{x:Bind Description}"
+                                                    TextWrapping="WrapWholeWords"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Padding="14"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <StackPanel Spacing="10">
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="BDD truth table"/>
+                            <ListView
+                                MaxHeight="360"
+                                ItemsSource="{x:Bind ViewModel.TruthTableRows, Mode=OneWay}"
+                                SelectionMode="None">
+                                <ListView.Header>
+                                    <Grid
+                                        Padding="12,6"
+                                        ColumnDefinitions="56,*,88">
+                                        <TextBlock FontWeight="SemiBold" Text="Row"/>
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            FontWeight="SemiBold"
+                                            Text="Assignment"/>
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            FontWeight="SemiBold"
+                                            Text="Value"/>
+                                    </Grid>
+                                </ListView.Header>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TruthTableRowViewModel">
+                                        <Grid
+                                            Padding="12,4"
+                                            ColumnDefinitions="56,*,88">
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Text="{x:Bind RowLabel}"/>
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Text="{x:Bind AssignmentText}"
+                                                TextTrimming="CharacterEllipsis"/>
+                                            <ToggleSwitch
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                IsOn="{x:Bind IsOne}"
+                                                KeyUp="TruthValue_KeyUp"
+                                                OffContent="0"
+                                                OnContent="1"
+                                                Tag="{x:Bind Index}"
+                                                Tapped="TruthValue_Tapped"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Grid
+                Grid.Column="1"
+                RowDefinitions="Auto,*"
+                RowSpacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock
+                            FontSize="22"
+                            FontWeight="SemiBold"
+                            Text="Diagram"/>
+                        <TextBlock
+                            Opacity="0.72"
+                            Text="Reduced BDD and unreduced BDT preview"/>
+                    </StackPanel>
+                    <Button
+                        x:Name="ReductionToggleButton"
+                        Grid.Column="1"
+                        VerticalAlignment="Bottom"
+                        Command="{x:Bind DiagramViewModel.ToggleReductionCommand}"/>
+                </Grid>
+
+                <Grid Grid.Row="1">
+                    <Border
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <WebView2
+                            x:Name="DiagramWebView"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"/>
+                    </Border>
+                    <ProgressRing
+                        x:Name="RenderingRing"
+                        Width="42"
+                        Height="42"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsActive="{x:Bind DiagramViewModel.IsRendering, Mode=OneWay}"/>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <InfoBar
+            x:Name="StatusInfoBar"
+            Grid.Row="2"
+            Margin="16,0,16,16"
+            IsClosable="False"
+            IsOpen="True"
+            Severity="Informational"
+            Title="Statistics"/>
+    </Grid>
+</Page>

@@ -47,6 +47,7 @@ Decision Diagram Studio（以下、本アプリ）は、BDD・ZDD・MTBDD・ZMTB
 | スレッドモデル | `BddManager` 等は非スレッドセーフ。`DecisionDiagramManager` の全操作は `SemaphoreSlim(1)` で保護した単一 critical section 内で実行する |
 | 外部依存 | Graphviz はオプション（未インストール時はフォールバック動作） |
 | ライブラリ依存 | `DecisionDiagramSharp` をサブモジュールとして `lib/` 以下に置き、プロジェクト参照で利用する（NuGet 公開後は切り替え可） |
+| ロギング依存 | `Serilog`（`Serilog.Sinks.File`・`Serilog.Sinks.Debug`）を必須依存として使用する。`ILogger<T>` 抽象を経由するため他層はSerilogに直接依存しない |
 
 ### A.3 主要な品質目標
 
@@ -647,6 +648,10 @@ DecisionDiagramStudio/
 │       │   ├── DiagramPreset.cs
 │       │   ├── AppDiagramStatistics.cs
 │       │   └── SessionOptions.cs
+│       ├── Infrastructure/              ← 横断的関心事（View/VM/Service/Model に非依存）
+│       │   └── Logging/
+│       │       ├── DailyFileLoggerProvider.cs   ← 日次ローテーション実装
+│       │       └── LoggingConfiguration.cs      ← DI 登録ヘルパー
 │       └── Assets/
 │           ├── Presets/
 │           │   └── presets.json
@@ -677,6 +682,7 @@ graph LR
     M["Model"]
     IFACE["Service Interface"]
     LIB["DecisionDiagramSharp"]
+    INFRA["Infrastructure/Logging<br/>(ILogger&lt;T&gt;)"]
 
     V -->|"データバインディングのみ"| VM
     VM -->|"インターフェース経由"| IFACE
@@ -685,12 +691,17 @@ graph LR
     S --> LIB
     VM --> M
 
+    INFRA -.->|"DI 注入（ILogger&lt;T&gt;）"| V
+    INFRA -.->|"DI 注入（ILogger&lt;T&gt;）"| VM
+    INFRA -.->|"DI 注入（ILogger&lt;T&gt;）"| S
+
     style V fill:#dae8fc
     style VM fill:#d5e8d4
     style S fill:#fff2cc
     style M fill:#f8cecc
     style IFACE fill:#e1d5e7
     style LIB fill:#f0f0f0
+    style INFRA fill:#d0e8c8
 ```
 
 **禁止依存関係:**
@@ -771,7 +782,7 @@ graph TD
 |---|---|
 | アプリ設定 (`SessionOptions`) | `%LOCALAPPDATA%\DecisionDiagramStudio\settings.json` |
 | ウィンドウ状態 | `ApplicationData.LocalSettings` (WinRT) |
-| ログ | `%LOCALAPPDATA%\DecisionDiagramStudio\logs\` |
+| ログ | `%LOCALAPPDATA%\DecisionDiagramStudio\logs\app-{yyyyMMdd}.log`（日次ローテーション・最大30ファイル） |
 
 ---
 
@@ -798,10 +809,46 @@ flowchart TD
 
 #### B8.2 ログ方針
 
-- `Microsoft.Extensions.Logging` (`ILogger<T>`) を使用する
-- `Debug` ビルド: `DebugLoggerProvider` + ファイルログ
-- `Release` ビルド: ファイルログのみ（ログレベル `Warning` 以上）
-- ログはローテーション付きで保持（最大 10 ファイル × 1MB）
+ロギングは横断的関心事として `Infrastructure/Logging/` に独立実装する（B6.2 参照）。View / ViewModel / Service / Model はロギング実装に直接依存せず、`ILogger<T>` のみを参照する。
+
+**ログレベル定義:**
+
+| レベル | `LogLevel` | 使用場面 |
+|---|---|---|
+| Trace | `LogLevel.Trace` | 変数値・ループ内部など最も詳細な診断情報 |
+| Debug | `LogLevel.Debug` | BDD 構築開始/完了・DOT 生成・SVG レンダリング呼び出しなど開発時診断 |
+| Information | `LogLevel.Information` | プリセット選択・ファミリー切り替え・エクスポート実行などユーザー操作の記録 |
+| Warning | `LogLevel.Warning` | Graphviz 未検出・ノード数 500 超警告・入力検証失敗 |
+| Error | `LogLevel.Error` | ライブラリ例外・Graphviz タイムアウト・ファイル IO 失敗 |
+| Critical | `LogLevel.Critical` | 未捕捉例外（`UnhandledException` ハンドラ内） |
+
+フィルタリングは現時点では設けない（MinimumLevel = Trace 固定）。将来 `SessionOptions` への追加枠を予約するが v0.1 では実装しない。
+
+**ログプロバイダー:**
+
+| プロバイダー | 実装 | Debug ビルド | Release ビルド |
+|---|---|---|---|
+| ファイルログ（日次ローテーション） | `Serilog.Sinks.File` | 有効 | 有効 |
+| Visual Studio 出力ウィンドウ | `Serilog.Sinks.Debug` | 有効（`Debugger.IsAttached` 時） | **無効** |
+
+**ファイルログ仕様:**
+
+| 項目 | 値 |
+|---|---|
+| 出力先 | `%LOCALAPPDATA%\DecisionDiagramStudio\logs\app-.log` |
+| ファイル名形式 | `app-20260515.log`（日付付与: `RollingInterval.Day`） |
+| 保持ファイル数 | 最大 30 ファイル（`retainedFileCountLimit: 30`） |
+| エンコーディング | UTF-8 |
+
+**ロギングルール:**
+
+| ルール ID | 内容 |
+|---|---|
+| **R-LOG-01** | ロガーは `ILogger<T>` 経由で取得する。スタティックなロガー呼び出しは禁止 |
+| **R-LOG-02** | ログにユーザー入力値を記録しない。例外メッセージに変数名が含まれる場合は `[REDACTED]` に置換する（B9.5 再掲） |
+| **R-LOG-03** | `OperationCanceledException` はログしない（正常キャンセル） |
+| **R-LOG-04** | `Infrastructure/Logging/` は View / ViewModel / Service / Model に依存しない。依存方向は `App.xaml.cs` → `Infrastructure` のみ |
+| **R-LOG-05** | ファイルパス・保持数などの定数は `LoggingConfiguration` にまとめ、ハードコードしない |
 
 ---
 

@@ -1,4 +1,5 @@
 using DecisionDiagramSharp;
+using DecisionDiagramStudio.Infrastructure.Logging;
 using DecisionDiagramStudio.Services;
 using DecisionDiagramStudio.Services.Interfaces;
 using DecisionDiagramStudio.ViewModels;
@@ -15,11 +16,14 @@ public partial class App : Application
     public static IServiceProvider Services { get; private set; } = null!;
 
     private Window? _window;
+    private ILogger<App>? _logger;
 
     /// <summary>App クラスを初期化する。</summary>
     public App()
     {
         InitializeComponent();
+        UnhandledException += OnUnhandledException;
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => DisposeServices();
     }
 
     /// <summary>アプリ起動時に DI コンテナを構成し MainWindow を表示する。</summary>
@@ -28,9 +32,12 @@ public partial class App : Application
         var services = new ServiceCollection();
         ConfigureServices(services);
         Services = services.BuildServiceProvider();
+        _logger = Services.GetRequiredService<ILogger<App>>();
+        _logger.LogInformation("Application launch started.");
 
         _window = new MainWindow();
         _window.Activate();
+        _logger.LogInformation("Application main window activated.");
     }
 
     private static void ConfigureServices(IServiceCollection services)
@@ -45,10 +52,21 @@ public partial class App : Application
         services.AddSingleton<StatisticsViewModel>();
         services.AddSingleton<ExplanationViewModel>();
 
-        services.AddLogging(logging =>
+        services.AddLogging(LoggingConfiguration.Configure);
+    }
+
+    private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs args)
+    {
+        _logger?.LogCritical(
+            "Unhandled exception reached the application boundary. ExceptionType={ExceptionType}",
+            args.Exception?.GetType().Name ?? "Unknown");
+    }
+
+    private static void DisposeServices()
+    {
+        if (Services is IDisposable disposable)
         {
-            logging.AddDebug();
-            logging.SetMinimumLevel(LogLevel.Debug);
-        });
+            disposable.Dispose();
+        }
     }
 }

@@ -4,9 +4,23 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Decision Diagram Studio">
     <Grid>
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Text="Decision Diagram Studio"/>
+        <NavigationView
+            x:Name="RootNavigationView"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            PaneDisplayMode="LeftCompact"
+            PaneTitle="Decision Diagram Studio"
+            SelectionChanged="RootNavigationView_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem
+                    Content="Workbench"
+                    Tag="Workbench">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Home"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <Frame x:Name="ContentFrame"/>
+        </NavigationView>
     </Grid>
 </Window>

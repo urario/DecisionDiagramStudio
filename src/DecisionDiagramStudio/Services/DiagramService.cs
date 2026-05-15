@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -5,6 +6,8 @@ using DecisionDiagramSharp;
 using DecisionDiagramSharp.Diagnostics;
 using DecisionDiagramStudio.Models;
 using DecisionDiagramStudio.Services.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DecisionDiagramStudio.Services;
 
@@ -21,6 +24,7 @@ public sealed class DiagramService : IDiagramService
     private static readonly Regex VariableNameRegex = new("^[a-zA-Z_][a-zA-Z0-9_]*$", RegexOptions.CultureInvariant);
 
     private readonly DecisionDiagramOptions _options;
+    private readonly ILogger<DiagramService> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private DecisionDiagramManager _manager;
     private Bdd? _currentBdd;
@@ -29,7 +33,7 @@ public sealed class DiagramService : IDiagramService
     /// Initializes a new instance of the <see cref="DiagramService"/> class with default library options.
     /// </summary>
     public DiagramService()
-        : this(new DecisionDiagramOptions())
+        : this(new DecisionDiagramOptions(), NullLogger<DiagramService>.Instance)
     {
     }
 
@@ -38,8 +42,19 @@ public sealed class DiagramService : IDiagramService
     /// </summary>
     /// <param name="options">Shared options for the wrapped decision diagram managers.</param>
     public DiagramService(DecisionDiagramOptions options)
+        : this(options, NullLogger<DiagramService>.Instance)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiagramService"/> class.
+    /// </summary>
+    /// <param name="options">Shared options for the wrapped decision diagram managers.</param>
+    /// <param name="logger">The logger used for service diagnostics.</param>
+    public DiagramService(DecisionDiagramOptions options, ILogger<DiagramService> logger)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _manager = new DecisionDiagramManager(_options);
     }
 
@@ -48,27 +63,88 @@ public sealed class DiagramService : IDiagramService
     /// <inheritdoc />
     public async Task<DiagramSession> BuildAsync(string[] variableNames, int[] intValueTable, DiagramFamily family, CancellationToken ct)
     {
-        ValidateVariableNames(variableNames);
-        ValidateTruthTableShape(variableNames, intValueTable);
+        ArgumentNullException.ThrowIfNull(variableNames);
+        ArgumentNullException.ThrowIfNull(intValueTable);
 
-        if (family != DiagramFamily.BDD)
-        {
-            throw new NotSupportedException("Only BDD builds are supported in v0.1.");
-        }
+        var stopwatch = Stopwatch.StartNew();
+        var variableCount = variableNames.Length;
+        var rowCount = intValueTable.Length;
+        var hasSemaphore = false;
 
-        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+        _logger.LogDebug(
+            "Diagram build requested. Family={Family} VariableCount={VariableCount} RowCount={RowCount}",
+            family,
+            variableCount,
+            rowCount);
+
         try
         {
+            ValidateVariableNames(variableNames);
+            ValidateTruthTableShape(variableNames, intValueTable);
+
+            if (family != DiagramFamily.BDD)
+            {
+                throw new NotSupportedException("Only BDD builds are supported in v0.1.");
+            }
+
+            await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+            hasSemaphore = true;
+
             if (CriticalSectionProbeAsync is { } probe)
             {
                 await probe(ct).ConfigureAwait(false);
             }
 
-            return await Task.Run(() => BuildBddSession(variableNames, intValueTable), ct).ConfigureAwait(false);
+            var session = await Task.Run(() => BuildBddSession(variableNames, intValueTable), ct).ConfigureAwait(false);
+            _logger.LogDebug(
+                "Diagram build completed. Family={Family} VariableCount={VariableCount} RowCount={RowCount} ReachableNodeCount={ReachableNodeCount} ElapsedMs={ElapsedMs}",
+                session.Family,
+                session.Statistics.VariableCount,
+                session.IntValueTable?.Length ?? 0,
+                session.Statistics.ReachableNodeCount,
+                stopwatch.ElapsedMilliseconds);
+            return session;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (NotSupportedException ex)
+        {
+            _logger.LogWarning(
+                "Diagram build request is not supported. Family={Family} VariableCount={VariableCount} RowCount={RowCount} ExceptionType={ExceptionType}",
+                family,
+                variableCount,
+                rowCount,
+                ex.GetType().Name);
+            throw;
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(
+                "Diagram build input validation failed. Family={Family} VariableCount={VariableCount} RowCount={RowCount} ExceptionType={ExceptionType}",
+                family,
+                variableCount,
+                rowCount,
+                ex.GetType().Name);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                "Diagram build failed. Family={Family} VariableCount={VariableCount} RowCount={RowCount} ExceptionType={ExceptionType}",
+                family,
+                variableCount,
+                rowCount,
+                ex.GetType().Name);
+            throw;
         }
         finally
         {
-            _semaphore.Release();
+            if (hasSemaphore)
+            {
+                _semaphore.Release();
+            }
         }
     }
 
@@ -76,23 +152,74 @@ public sealed class DiagramService : IDiagramService
     public Task<string> GetBdtDotAsync(DiagramSession session, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(session);
-        ct.ThrowIfCancellationRequested();
 
-        if (session.Family != DiagramFamily.BDD)
-        {
-            throw new NotSupportedException("BDT DOT generation is only available for BDD sessions.");
-        }
-
-        ValidateVariableNames(session.VariableNames);
-        ValidateTruthTableShape(session.VariableNames, session.IntValueTable);
-
+        var stopwatch = Stopwatch.StartNew();
         var variableCount = session.VariableNames.Length;
-        if (variableCount > MaxBdtVariableCount)
-        {
-            throw new BdtVariableLimitException(variableCount, MaxBdtVariableCount);
-        }
 
-        return Task.FromResult(BuildBdtDot(session.VariableNames, session.IntValueTable!));
+        _logger.LogDebug("BDT DOT generation requested. VariableCount={VariableCount}", variableCount);
+
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (session.Family != DiagramFamily.BDD)
+            {
+                throw new NotSupportedException("BDT DOT generation is only available for BDD sessions.");
+            }
+
+            ValidateVariableNames(session.VariableNames);
+            ValidateTruthTableShape(session.VariableNames, session.IntValueTable);
+
+            variableCount = session.VariableNames.Length;
+            if (variableCount > MaxBdtVariableCount)
+            {
+                throw new BdtVariableLimitException(variableCount, MaxBdtVariableCount);
+            }
+
+            var dotText = BuildBdtDot(session.VariableNames, session.IntValueTable!);
+            _logger.LogDebug(
+                "BDT DOT generation completed. VariableCount={VariableCount} DotLength={DotLength} ElapsedMs={ElapsedMs}",
+                variableCount,
+                dotText.Length,
+                stopwatch.ElapsedMilliseconds);
+            return Task.FromResult(dotText);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (BdtVariableLimitException ex)
+        {
+            _logger.LogWarning(
+                "BDT DOT generation exceeded the variable limit. VariableCount={VariableCount} MaxVariableCount={MaxVariableCount}",
+                ex.VariableCount,
+                ex.MaxVariableCount);
+            throw;
+        }
+        catch (NotSupportedException ex)
+        {
+            _logger.LogWarning(
+                "BDT DOT generation request is not supported. VariableCount={VariableCount} ExceptionType={ExceptionType}",
+                variableCount,
+                ex.GetType().Name);
+            throw;
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(
+                "BDT DOT input validation failed. VariableCount={VariableCount} ExceptionType={ExceptionType}",
+                variableCount,
+                ex.GetType().Name);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                "BDT DOT generation failed. VariableCount={VariableCount} ExceptionType={ExceptionType}",
+                variableCount,
+                ex.GetType().Name);
+            throw;
+        }
     }
 
     internal Bdd BuildBddFromTruthTable(int[] values, string[] variableNames)
@@ -231,6 +358,11 @@ public sealed class DiagramService : IDiagramService
 
         var statistics = AppDiagramStatistics.ForBdd(_manager.Bdd.GetStatistics(bdd));
         var dotText = BddDiagnostics.ToDot(_manager.Bdd, bdd);
+        _logger.LogTrace(
+            "BDD session materialized. VariableCount={VariableCount} DotLength={DotLength} ReachableNodeCount={ReachableNodeCount}",
+            variableNames.Length,
+            dotText.Length,
+            statistics.ReachableNodeCount);
 
         return new DiagramSession
         {
@@ -268,6 +400,7 @@ public sealed class DiagramService : IDiagramService
 
         _manager = new DecisionDiagramManager(_options);
         _currentBdd = null;
+        _logger.LogDebug("Decision diagram manager reset for a new BDD variable schema. VariableCount={VariableCount}", variableNames.Length);
     }
 
     private static int ConvertLeafOffsetToTruthTableMask(int leafOffset, int variableCount)

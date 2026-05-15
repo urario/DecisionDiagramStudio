@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DecisionDiagramStudio.Models;
 using DecisionDiagramStudio.Services.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DecisionDiagramStudio.Services;
 
@@ -18,6 +20,7 @@ public sealed class PresetService : IPresetService
         Converters = { new JsonStringEnumConverter() },
     };
 
+    private readonly ILogger<PresetService> _logger;
     private readonly DiagramPreset[] _presets;
     private readonly Dictionary<string, DiagramPreset> _presetsById;
 
@@ -25,7 +28,16 @@ public sealed class PresetService : IPresetService
     /// Initializes a new instance of the <see cref="PresetService"/> class.
     /// </summary>
     public PresetService()
-        : this(DefaultPresetRelativePath)
+        : this(DefaultPresetRelativePath, NullLogger<PresetService>.Instance)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PresetService"/> class.
+    /// </summary>
+    /// <param name="logger">The logger used for preset diagnostics.</param>
+    public PresetService(ILogger<PresetService> logger)
+        : this(DefaultPresetRelativePath, logger)
     {
     }
 
@@ -34,14 +46,21 @@ public sealed class PresetService : IPresetService
     /// </summary>
     /// <param name="presetPath">The preset JSON file path.</param>
     public PresetService(string presetPath)
+        : this(presetPath, NullLogger<PresetService>.Instance)
+    {
+    }
+
+    private PresetService(string presetPath, ILogger<PresetService> logger)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(presetPath);
 
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         var resolvedPath = ResolvePresetPath(presetPath);
         var json = File.ReadAllText(resolvedPath);
         _presets = JsonSerializer.Deserialize<DiagramPreset[]>(json, JsonOptions) ?? [];
         ValidatePresets(_presets);
         _presetsById = _presets.ToDictionary(preset => preset.Id, StringComparer.Ordinal);
+        _logger.LogInformation("Preset catalog loaded. PresetCount={PresetCount}", _presets.Length);
     }
 
     /// <inheritdoc />
@@ -57,9 +76,11 @@ public sealed class PresetService : IPresetService
 
         if (!_presetsById.TryGetValue(id, out var preset))
         {
+            _logger.LogWarning("Preset lookup failed. PresetCount={PresetCount}", _presets.Length);
             throw new KeyNotFoundException("Preset id was not found: " + id);
         }
 
+        _logger.LogInformation("Preset selected. PresetCount={PresetCount}", _presets.Length);
         return ClonePreset(preset);
     }
 

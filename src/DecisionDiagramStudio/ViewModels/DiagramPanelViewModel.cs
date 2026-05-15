@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DecisionDiagramStudio.Models;
 using DecisionDiagramStudio.Services.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DecisionDiagramStudio.ViewModels;
 
@@ -12,6 +14,8 @@ public sealed partial class DiagramPanelViewModel : ObservableObject
 {
     private readonly IDiagramService _diagramService;
     private readonly IGraphvizService _graphvizService;
+    private readonly ILogger<DiagramPanelViewModel> _logger;
+    private Func<Action, Task> _runOnUiThreadAsync = RunInlineAsync;
 
     [ObservableProperty]
     private DiagramSession? _currentSession;
@@ -40,9 +44,24 @@ public sealed partial class DiagramPanelViewModel : ObservableObject
     /// <param name="diagramService">The service used to generate unreduced BDT DOT.</param>
     /// <param name="graphvizService">The service used to render DOT into SVG.</param>
     public DiagramPanelViewModel(IDiagramService diagramService, IGraphvizService graphvizService)
+        : this(diagramService, graphvizService, NullLogger<DiagramPanelViewModel>.Instance)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DiagramPanelViewModel"/> class.
+    /// </summary>
+    /// <param name="diagramService">The service used to generate unreduced BDT DOT.</param>
+    /// <param name="graphvizService">The service used to render DOT into SVG.</param>
+    /// <param name="logger">The logger used for diagram-panel diagnostics.</param>
+    public DiagramPanelViewModel(
+        IDiagramService diagramService,
+        IGraphvizService graphvizService,
+        ILogger<DiagramPanelViewModel> logger)
     {
         _diagramService = diagramService ?? throw new ArgumentNullException(nameof(diagramService));
         _graphvizService = graphvizService ?? throw new ArgumentNullException(nameof(graphvizService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         ToggleReductionCommand = new AsyncRelayCommand(ToggleReductionAsync);
     }
 
@@ -50,6 +69,15 @@ public sealed partial class DiagramPanelViewModel : ObservableObject
     /// Gets the command that toggles between reduced BDD DOT and unreduced BDT DOT.
     /// </summary>
     public IAsyncRelayCommand ToggleReductionCommand { get; }
+
+    /// <summary>
+    /// Sets the dispatcher used to return render results to the UI thread before mutating bound state.
+    /// </summary>
+    /// <param name="runOnUiThreadAsync">The dispatcher callback.</param>
+    public void SetUiThreadDispatcher(Func<Action, Task> runOnUiThreadAsync)
+    {
+        _runOnUiThreadAsync = runOnUiThreadAsync ?? throw new ArgumentNullException(nameof(runOnUiThreadAsync));
+    }
 
     /// <summary>
     /// Updates the panel with a newly built session.
@@ -61,10 +89,18 @@ public sealed partial class DiagramPanelViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        CurrentSession = session;
-        IsReduced = true;
-        IsBdtButtonVisible = session.Family == DiagramFamily.BDD;
-        await RenderDotAsync(session.DotText, ct).ConfigureAwait(false);
+        await _runOnUiThreadAsync(() =>
+        {
+            CurrentSession = session;
+            IsReduced = true;
+            IsBdtButtonVisible = session.Family == DiagramFamily.BDD;
+            _logger.LogDebug(
+                "Diagram panel received a session. Family={Family} VariableCount={VariableCount} DotLength={DotLength}",
+                session.Family,
+                session.VariableNames.Length,
+                session.DotText.Length);
+        }).ConfigureAwait(false);
+        await RenderDotAsync(session.DotText, ct);
     }
 
     /// <summary>
@@ -76,36 +112,79 @@ public sealed partial class DiagramPanelViewModel : ObservableObject
         if (CurrentSession is null || CurrentSession.Family != DiagramFamily.BDD)
         {
             IsBdtButtonVisible = false;
+            _logger.LogTrace("Reduction toggle ignored because no BDD session is active.");
             return;
         }
 
-        var nextIsReduced = !IsReduced;
-        var nextDotText = nextIsReduced
-            ? CurrentSession.DotText
-            : await _diagramService.GetBdtDotAsync(CurrentSession, CancellationToken.None).ConfigureAwait(false);
-
-        await RenderDotAsync(nextDotText, CancellationToken.None).ConfigureAwait(false);
-        IsReduced = nextIsReduced;
-    }
-
-    private async Task RenderDotAsync(string dotText, CancellationToken ct)
-    {
-        IsRendering = true;
         ErrorMessage = string.Empty;
 
         try
         {
-            DotText = dotText;
-            SvgContent = await _graphvizService.RenderSvgAsync(dotText, ct).ConfigureAwait(false);
+            var nextIsReduced = !IsReduced;
+            var nextDotText = nextIsReduced
+                ? CurrentSession.DotText
+                : await _diagramService.GetBdtDotAsync(CurrentSession, CancellationToken.None);
+
+            _logger.LogInformation(
+                "Diagram reduction mode toggled. IsReduced={IsReduced} VariableCount={VariableCount}",
+                nextIsReduced,
+                CurrentSession.VariableNames.Length);
+            await RenderDotAsync(nextDotText, CancellationToken.None);
+            await _runOnUiThreadAsync(() => IsReduced = nextIsReduced);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ErrorMessage = ex.Message;
+            _logger.LogError(
+                "Diagram reduction toggle failed. ExceptionType={ExceptionType}",
+                ex.GetType().Name);
+            await _runOnUiThreadAsync(() => ErrorMessage = ex.Message);
+            throw;
+        }
+    }
+
+    private async Task RenderDotAsync(string dotText, CancellationToken ct)
+    {
+        try
+        {
+            await _runOnUiThreadAsync(() =>
+            {
+                IsRendering = true;
+                ErrorMessage = string.Empty;
+                DotText = dotText;
+                _logger.LogDebug("Diagram DOT render started. DotLength={DotLength}", dotText.Length);
+            }).ConfigureAwait(false);
+
+            var svgContent = await _graphvizService.RenderSvgAsync(dotText, ct).ConfigureAwait(false);
+            await _runOnUiThreadAsync(() =>
+            {
+                SvgContent = svgContent;
+                _logger.LogDebug(
+                    "Diagram DOT render completed. DotLength={DotLength} SvgLength={SvgLength}",
+                    dotText.Length,
+                    SvgContent.Length);
+            }).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await _runOnUiThreadAsync(() =>
+            {
+                _logger.LogError(
+                    "Diagram DOT render failed. DotLength={DotLength} ExceptionType={ExceptionType}",
+                    dotText.Length,
+                    ex.GetType().Name);
+                ErrorMessage = ex.Message;
+            }).ConfigureAwait(false);
             throw;
         }
         finally
         {
-            IsRendering = false;
+            await _runOnUiThreadAsync(() => IsRendering = false).ConfigureAwait(false);
         }
+    }
+
+    private static Task RunInlineAsync(Action action)
+    {
+        action();
+        return Task.CompletedTask;
     }
 }

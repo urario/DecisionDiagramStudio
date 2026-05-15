@@ -27,7 +27,12 @@ public sealed class WorkbenchViewModelTests
         // Assert
         Assert.AreEqual(DiagramFamily.BDD, viewModel.SelectedFamily, "The initial workbench family should be BDD.");
         CollectionAssert.AreEqual(new[] { "a" }, viewModel.VariableNames, "The default BDD workbench should start with one variable.");
+        Assert.AreEqual("a", viewModel.VariableNamesText, "The variable editor should mirror the initial variables.");
         CollectionAssert.AreEqual(new[] { 0, 1 }, viewModel.IntValueTable, "The default BDD table should be the identity table.");
+        Assert.AreEqual(2, viewModel.TruthTableRows.Count, "The formatted truth-table rows should mirror the initial table.");
+        Assert.AreEqual(1, viewModel.Presets.Count, "Available presets should be exposed for the view.");
+        Assert.IsNotNull(viewModel.ApplyVariableNamesCommand, "Variable-name edits should be exposed as a command.");
+        Assert.IsNotNull(viewModel.RebuildCommand, "A rebuild command should be exposed for the initial view load.");
         Assert.IsNotNull(viewModel.SelectPresetCommand, "Preset selection should be exposed as a command.");
         Assert.IsNotNull(viewModel.ChangeTruthTableCellCommand, "Truth-table changes should be exposed as a command.");
     }
@@ -148,6 +153,27 @@ public sealed class WorkbenchViewModelTests
         var exception = Assert.ThrowsException<InvalidOperationException>(() => viewModel.SelectPreset("bdd.xor"));
         Assert.AreEqual("build failed", exception.Message, "Build failures should be surfaced to the caller.");
         Assert.AreEqual("build failed", viewModel.ErrorMessage, "Build failures should update the view-model error message.");
+    }
+
+    /// <summary>
+    /// Verifies that debounced rebuild failures are captured on the view model.
+    /// </summary>
+    [TestMethod]
+    public async Task ChangeTruthTableCell_DebouncedBuildFailure_ShouldSetErrorMessage()
+    {
+        // Arrange
+        var viewModel = new WorkbenchViewModel(
+            new ThrowingDiagramService(),
+            new StubPresetService(),
+            new CommandStack(),
+            TimeSpan.Zero);
+
+        // Act
+        viewModel.ChangeTruthTableCell(0, 1);
+        await viewModel.PendingBuildTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        // Assert
+        Assert.AreEqual("build failed", viewModel.ErrorMessage, "Debounced build failures should be captured instead of faulting the task.");
     }
 
     /// <summary>

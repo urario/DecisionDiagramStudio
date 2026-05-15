@@ -25,19 +25,20 @@ public sealed class PresetServiceTests
     }
 
     /// <summary>
-    /// Verifies the four required BDD learning presets.
+    /// Verifies the required BDD circuit presets.
     /// </summary>
     [TestMethod]
-    public void GetPreset_RequiredBddLearningPresets_ShouldReturnExpectedTruthTables()
+    public void GetPreset_RequiredBddCircuitPresets_ShouldReturnExpectedTruthTables()
     {
         // Arrange
         var service = new PresetService(GetPresetPath());
         var expected = new Dictionary<string, (string[] Variables, int[] Values)>
         {
-            ["bdd.identity.a"] = (new[] { "a" }, new[] { 0, 1 }),
-            ["bdd.and"] = (new[] { "a", "b" }, new[] { 0, 0, 0, 1 }),
-            ["bdd.or"] = (new[] { "a", "b" }, new[] { 0, 1, 1, 1 }),
-            ["bdd.xor"] = (new[] { "a", "b" }, new[] { 0, 1, 1, 0 }),
+            ["bdd.mux2"] = (new[] { "s", "d0", "d1" }, new[] { 0, 0, 1, 0, 0, 1, 1, 1 }),
+            ["bdd.full_adder.sum"] = (new[] { "a", "b", "cin" }, new[] { 0, 1, 1, 0, 1, 0, 0, 1 }),
+            ["bdd.full_adder.carry"] = (new[] { "a", "b", "cin" }, new[] { 0, 0, 0, 1, 0, 1, 1, 1 }),
+            ["bdd.eq2"] = (new[] { "a0", "a1", "b0", "b1" }, new[] { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 }),
+            ["bdd.one_hot4"] = (new[] { "a", "b", "c", "d" }, new[] { 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 }),
         };
 
         // Act / Assert
@@ -50,7 +51,7 @@ public sealed class PresetServiceTests
             CollectionAssert.AreEqual(contract.Values, preset.TruthTableValues, id + " should expose the expected truth table.");
         }
 
-        Assert.AreEqual(4, service.GetPresets().Count, "The v0.1 preset asset should contain the required four BDD presets.");
+        Assert.AreEqual(5, service.GetPresets().Count, "The v0.1 preset asset should contain the required five BDD circuit presets.");
     }
 
     /// <summary>
@@ -61,16 +62,16 @@ public sealed class PresetServiceTests
     {
         // Arrange
         var service = new PresetService(GetPresetPath());
-        var first = service.GetPreset("bdd.xor");
+        var first = service.GetPreset("bdd.mux2");
         first.VariableNames[0] = "changed";
         first.TruthTableValues[0] = 1;
 
         // Act
-        var second = service.GetPreset("bdd.xor");
+        var second = service.GetPreset("bdd.mux2");
 
         // Assert
-        CollectionAssert.AreEqual(new[] { "a", "b" }, second.VariableNames, "Mutating one returned preset should not affect later calls.");
-        CollectionAssert.AreEqual(new[] { 0, 1, 1, 0 }, second.TruthTableValues, "Mutating one returned table should not affect later calls.");
+        CollectionAssert.AreEqual(new[] { "s", "d0", "d1" }, second.VariableNames, "Mutating one returned preset should not affect later calls.");
+        CollectionAssert.AreEqual(new[] { 0, 0, 1, 0, 0, 1, 1, 1 }, second.TruthTableValues, "Mutating one returned table should not affect later calls.");
     }
 
     private static string GetPresetPath()

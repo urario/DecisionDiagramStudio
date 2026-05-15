@@ -30,6 +30,8 @@ public sealed class WorkbenchViewModelTests
         Assert.AreEqual("a", viewModel.VariableNamesText, "The variable editor should mirror the initial variables.");
         CollectionAssert.AreEqual(new[] { 0, 1 }, viewModel.IntValueTable, "The default BDD table should be the identity table.");
         Assert.AreEqual(2, viewModel.TruthTableRows.Count, "The formatted truth-table rows should mirror the initial table.");
+        CollectionAssert.AreEqual(new[] { 0 }, viewModel.TruthTableRows[0].VariableValues.ToArray(), "Rows should expose per-variable values.");
+        CollectionAssert.AreEqual(new[] { 1 }, viewModel.TruthTableRows[1].VariableValues.ToArray(), "Variable values should follow LSB-first row indexing.");
         Assert.AreEqual(1, viewModel.Presets.Count, "Available presets should be exposed for the view.");
         Assert.IsNotNull(viewModel.ApplyVariableNamesCommand, "Variable-name edits should be exposed as a command.");
         Assert.IsNotNull(viewModel.RebuildCommand, "A rebuild command should be exposed for the initial view load.");
@@ -130,6 +132,8 @@ public sealed class WorkbenchViewModelTests
         Assert.AreEqual(1, diagramService.BuildRequests.Count, "Selecting a preset should perform one immediate build.");
         CollectionAssert.AreEqual(new[] { "a", "b" }, diagramService.BuildRequests[0].Variables, "The preset variables should be sent to the service.");
         CollectionAssert.AreEqual(new[] { 0, 1, 1, 0 }, diagramService.BuildRequests[0].Values, "The preset truth table should be sent to the service.");
+        CollectionAssert.AreEqual(new[] { 1, 0 }, viewModel.TruthTableRows[1].VariableValues.ToArray(), "Variable columns should stay aligned to the variable name order.");
+        CollectionAssert.AreEqual(new[] { 0, 1 }, viewModel.TruthTableRows[2].VariableValues.ToArray(), "Variable columns should expose one bit per variable.");
         Assert.IsTrue(commandStack.CanUndo, "The preset change should be pushed through the command stack.");
         Assert.IsNotNull(viewModel.CurrentSession, "The rebuilt session should be applied to the workbench.");
         StringAssert.StartsWith(viewModel.CurrentSession!.DotText, "digraph BDD");

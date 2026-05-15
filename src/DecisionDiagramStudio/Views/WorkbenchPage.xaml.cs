@@ -8,8 +8,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
-using Windows.System;
 using Windows.Foundation;
 
 namespace DecisionDiagramStudio.Views;
@@ -123,49 +121,24 @@ public sealed partial class WorkbenchPage : Page
         }
     }
 
-    private void TruthValue_Tapped(object sender, TappedRoutedEventArgs e)
+    private void TruthValueButton_Click(object sender, RoutedEventArgs e)
     {
-        QueueTruthValueChange(sender);
-    }
-
-    private void TruthValue_KeyUp(object sender, KeyRoutedEventArgs e)
-    {
-        if (e.Key is not (VirtualKey.Space or VirtualKey.Enter))
+        if (sender is not Button { DataContext: TruthTableRowViewModel row })
         {
             return;
         }
 
-        e.Handled = true;
-        QueueTruthValueChange(sender);
-    }
-
-    private void QueueTruthValueChange(object sender)
-    {
-        if (sender is not ToggleSwitch toggleSwitch)
-        {
-            return;
-        }
-
-        _ = DispatcherQueue.TryEnqueue(() => ApplyTruthValueChange(toggleSwitch));
-    }
-
-    private void ApplyTruthValueChange(ToggleSwitch toggleSwitch)
-    {
-        if (toggleSwitch.Tag is not int index)
-        {
-            return;
-        }
-
+        var nextValue = row.Value == 1 ? 0 : 1;
         try
         {
-            _logger.LogDebug("Truth-table toggle changed. RowIndex={RowIndex}", index);
-            ViewModel.ChangeTruthTableCell(index, toggleSwitch.IsOn ? 1 : 0);
+            _logger.LogDebug("Truth-table value button clicked. RowIndex={RowIndex}", row.Index);
+            ViewModel.ChangeTruthTableCell(row.Index, nextValue);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(
                 "Truth-table toggle handling failed. RowIndex={RowIndex} ExceptionType={ExceptionType}",
-                index,
+                row.Index,
                 ex.GetType().Name);
             ShowError(ex.Message);
         }
@@ -565,14 +538,138 @@ public sealed partial class WorkbenchPage : Page
     private static string CreateSvgDocument(string svgContent)
     {
         var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
-        const string Style = "html,body{height:100%;margin:0;background:#f8f8f8;color:#1f1f1f;font-family:Segoe UI,Arial,sans-serif;}" +
-            ".surface{height:100%;display:flex;align-items:center;justify-content:center;overflow:auto;padding:24px;box-sizing:border-box;}" +
-            ".placeholder{color:#666;font-size:14px;}" +
-            "svg{max-width:100%;height:auto;}";
+        const string Style = "html,body{height:100%;margin:0;background:#f8f8f8;color:#1f1f1f;font-family:Segoe UI,Arial,sans-serif;overflow:hidden;}" +
+            ".surface{position:relative;height:100%;overflow:hidden;box-sizing:border-box;}" +
+            ".viewport{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;}" +
+            ".viewport.is-panning{cursor:grabbing;}" +
+            ".diagram-layer{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;}" +
+            ".diagram-layer svg{display:block;max-width:none;height:auto;}" +
+            ".controls{position:absolute;right:12px;top:12px;z-index:2;display:flex;gap:8px;}" +
+            ".controls button{border:1px solid #c7c7c7;border-radius:4px;background:#ffffff;color:#1f1f1f;font:12px Segoe UI,Arial,sans-serif;padding:5px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.12);}" +
+            ".controls button:hover{background:#f0f0f0;}" +
+            ".placeholder{height:100%;display:flex;align-items:center;justify-content:center;color:#666;font-size:14px;}";
+        const string Script = """
+(() => {
+    const viewport = document.getElementById('diagramViewport');
+    const layer = document.getElementById('diagramLayer');
+    const resetButton = document.getElementById('resetZoomButton');
+    if (!viewport || !layer) {
+        return;
+    }
+
+    const state = {
+        scale: 1,
+        x: 0,
+        y: 0,
+        pointerId: null,
+        startClientX: 0,
+        startClientY: 0,
+        startX: 0,
+        startY: 0
+    };
+    const minScale = 0.2;
+    const maxScale = 8;
+
+    function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    function render() {
+        layer.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+    }
+
+    function fitDiagram() {
+        const svg = layer.querySelector('svg');
+        const viewportRect = viewport.getBoundingClientRect();
+        if (!svg || viewportRect.width <= 0 || viewportRect.height <= 0) {
+            return;
+        }
+
+        layer.style.transform = 'none';
+        const svgRect = svg.getBoundingClientRect();
+        if (svgRect.width <= 0 || svgRect.height <= 0) {
+            return;
+        }
+
+        const padding = 48;
+        const scaleX = Math.max((viewportRect.width - padding) / svgRect.width, minScale);
+        const scaleY = Math.max((viewportRect.height - padding) / svgRect.height, minScale);
+        state.scale = clamp(Math.min(scaleX, scaleY, 1), minScale, maxScale);
+        state.x = (viewportRect.width - (svgRect.width * state.scale)) / 2;
+        state.y = (viewportRect.height - (svgRect.height * state.scale)) / 2;
+        render();
+    }
+
+    function zoomAt(clientX, clientY, scaleFactor) {
+        const viewportRect = viewport.getBoundingClientRect();
+        const pointerX = clientX - viewportRect.left;
+        const pointerY = clientY - viewportRect.top;
+        const diagramX = (pointerX - state.x) / state.scale;
+        const diagramY = (pointerY - state.y) / state.scale;
+        const nextScale = clamp(state.scale * scaleFactor, minScale, maxScale);
+        state.x = pointerX - (diagramX * nextScale);
+        state.y = pointerY - (diagramY * nextScale);
+        state.scale = nextScale;
+        render();
+    }
+
+    viewport.addEventListener('wheel', event => {
+        event.preventDefault();
+        const scaleFactor = Math.exp(-event.deltaY * 0.001);
+        zoomAt(event.clientX, event.clientY, scaleFactor);
+    }, { passive: false });
+
+    viewport.addEventListener('pointerdown', event => {
+        if (event.button !== 0) {
+            return;
+        }
+
+        state.pointerId = event.pointerId;
+        state.startClientX = event.clientX;
+        state.startClientY = event.clientY;
+        state.startX = state.x;
+        state.startY = state.y;
+        viewport.classList.add('is-panning');
+        viewport.setPointerCapture(event.pointerId);
+    });
+
+    viewport.addEventListener('pointermove', event => {
+        if (state.pointerId !== event.pointerId) {
+            return;
+        }
+
+        state.x = state.startX + event.clientX - state.startClientX;
+        state.y = state.startY + event.clientY - state.startClientY;
+        render();
+    });
+
+    function endPan(event) {
+        if (state.pointerId !== event.pointerId) {
+            return;
+        }
+
+        state.pointerId = null;
+        viewport.classList.remove('is-panning');
+        if (viewport.hasPointerCapture(event.pointerId)) {
+            viewport.releasePointerCapture(event.pointerId);
+        }
+    }
+
+    viewport.addEventListener('pointerup', endPan);
+    viewport.addEventListener('pointercancel', endPan);
+    viewport.addEventListener('dblclick', fitDiagram);
+    resetButton?.addEventListener('click', fitDiagram);
+    window.addEventListener('resize', fitDiagram);
+    requestAnimationFrame(fitDiagram);
+})();
+""";
         var csp = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-" + nonce + "'; object-src 'none'; base-uri 'none'";
         var body = string.IsNullOrWhiteSpace(svgContent)
             ? "<div class=\"placeholder\">Build a diagram to preview SVG.</div>"
-            : svgContent;
+            : "<div class=\"controls\"><button id=\"resetZoomButton\" type=\"button\">Reset zoom</button></div>" +
+                "<div id=\"diagramViewport\" class=\"viewport\"><div id=\"diagramLayer\" class=\"diagram-layer\">" +
+                svgContent +
+                "</div></div>";
 
         return "<!doctype html><html><head><meta http-equiv=\"Content-Security-Policy\" content=\"" +
             WebUtility.HtmlEncode(csp) +
@@ -580,6 +677,10 @@ public sealed partial class WorkbenchPage : Page
             Style +
             "</style></head><body><div class=\"surface\">" +
             body +
-            "</div></body></html>";
+            "</div><script nonce=\"" +
+            nonce +
+            "\">" +
+            Script +
+            "</script></body></html>";
     }
 }

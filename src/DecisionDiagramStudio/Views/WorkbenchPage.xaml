@@ -2,11 +2,30 @@
     x:Class="DecisionDiagramStudio.Views.WorkbenchPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:DecisionDiagramStudio.Converters"
     xmlns:models="using:DecisionDiagramStudio.Models"
     xmlns:vm="using:DecisionDiagramStudio.ViewModels"
     Loaded="Page_Loaded"
     Unloaded="Page_Unloaded"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Page.Resources>
+        <converters:DiagramFamilyBrushConverter x:Key="DiagramFamilyBrushConverter"/>
+        <converters:DiagramFamilyIsCheckedConverter x:Key="DiagramFamilyIsCheckedConverter"/>
+        <converters:TruthValueBrushConverter x:Key="TruthValueBackgroundConverter"/>
+        <converters:TruthValueBrushConverter x:Key="TruthValueBorderConverter"/>
+        <converters:TruthValueBrushConverter x:Key="TruthValueForegroundConverter"/>
+        <Style x:Key="DiagramFamilyRadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="MinHeight" Value="32"/>
+        </Style>
+        <Style x:Key="TruthTableVariableCellTextStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+    </Page.Resources>
 
     <Grid RowDefinitions="Auto,*,Auto">
         <InfoBar
@@ -20,7 +39,7 @@
         <Grid
             Grid.Row="1"
             Padding="16"
-            ColumnDefinitions="360,*"
+            ColumnDefinitions="430,*"
             ColumnSpacing="16">
             <ScrollViewer
                 Grid.Column="0"
@@ -48,34 +67,105 @@
                     </Border>
 
                     <Border
-                        Padding="14"
                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                        <StackPanel Spacing="10">
-                            <TextBlock
-                                FontSize="18"
-                                FontWeight="SemiBold"
-                                Text="Family"/>
-                            <StackPanel Spacing="4">
-                                <RadioButton
-                                    Content="BDD"
-                                    GroupName="DiagramFamily"
-                                    IsChecked="True"/>
-                                <RadioButton
-                                    Content="ZDD"
-                                    GroupName="DiagramFamily"
-                                    IsEnabled="False"/>
-                                <RadioButton
-                                    Content="MTBDD"
-                                    GroupName="DiagramFamily"
-                                    IsEnabled="False"/>
-                                <RadioButton
-                                    Content="ZMTBDD"
-                                    GroupName="DiagramFamily"
-                                    IsEnabled="False"/>
+                        <Grid ColumnDefinitions="4,*">
+                            <Border
+                                Background="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                CornerRadius="6,0,0,6"/>
+                            <StackPanel
+                                Grid.Column="1"
+                                Padding="14"
+                                Spacing="10">
+                                <TextBlock
+                                    FontSize="18"
+                                    FontWeight="SemiBold"
+                                    Foreground="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                    Text="Family"/>
+                                <StackPanel Spacing="4">
+                                    <RadioButton
+                                        Content="BDD"
+                                        Foreground="{ThemeResource DiagramFamilyBDDAccentBrush}"
+                                        GroupName="DiagramFamily"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=BDD}"
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        <RadioButton.Resources>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePressed" ResourceKey="DiagramFamilyBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokeDisabled" ResourceKey="DiagramFamilyBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFill" ResourceKey="DiagramFamilyBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" ResourceKey="DiagramFamilyBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPressed" ResourceKey="DiagramFamilyBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillDisabled" ResourceKey="DiagramFamilyBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseStrokeDisabled" ResourceKey="DiagramFamilyBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonForegroundDisabled" ResourceKey="DiagramFamilyBDDAccentMutedBrush"/>
+                                        </RadioButton.Resources>
+                                    </RadioButton>
+                                    <RadioButton
+                                        Content="ZDD"
+                                        Foreground="{ThemeResource DiagramFamilyZDDAccentBrush}"
+                                        GroupName="DiagramFamily"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=ZDD}"
+                                        IsEnabled="False"
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        <RadioButton.Resources>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyZDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyZDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePressed" ResourceKey="DiagramFamilyZDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokeDisabled" ResourceKey="DiagramFamilyZDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFill" ResourceKey="DiagramFamilyZDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" ResourceKey="DiagramFamilyZDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPressed" ResourceKey="DiagramFamilyZDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillDisabled" ResourceKey="DiagramFamilyZDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseStrokeDisabled" ResourceKey="DiagramFamilyZDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonForegroundDisabled" ResourceKey="DiagramFamilyZDDAccentMutedBrush"/>
+                                        </RadioButton.Resources>
+                                    </RadioButton>
+                                    <RadioButton
+                                        Content="MTBDD"
+                                        Foreground="{ThemeResource DiagramFamilyMTBDDAccentBrush}"
+                                        GroupName="DiagramFamily"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=MTBDD}"
+                                        IsEnabled="False"
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        <RadioButton.Resources>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePressed" ResourceKey="DiagramFamilyMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokeDisabled" ResourceKey="DiagramFamilyMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFill" ResourceKey="DiagramFamilyMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" ResourceKey="DiagramFamilyMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPressed" ResourceKey="DiagramFamilyMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillDisabled" ResourceKey="DiagramFamilyMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseStrokeDisabled" ResourceKey="DiagramFamilyMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonForegroundDisabled" ResourceKey="DiagramFamilyMTBDDAccentMutedBrush"/>
+                                        </RadioButton.Resources>
+                                    </RadioButton>
+                                    <RadioButton
+                                        Content="ZMTBDD"
+                                        Foreground="{ThemeResource DiagramFamilyZMTBDDAccentBrush}"
+                                        GroupName="DiagramFamily"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=ZMTBDD}"
+                                        IsEnabled="False"
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        <RadioButton.Resources>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyZMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyZMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePressed" ResourceKey="DiagramFamilyZMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokeDisabled" ResourceKey="DiagramFamilyZMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFill" ResourceKey="DiagramFamilyZMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPointerOver" ResourceKey="DiagramFamilyZMTBDDAccentBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillPressed" ResourceKey="DiagramFamilyZMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseCheckedFillDisabled" ResourceKey="DiagramFamilyZMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonOuterEllipseStrokeDisabled" ResourceKey="DiagramFamilyZMTBDDAccentMutedBrush"/>
+                                            <StaticResource x:Key="RadioButtonForegroundDisabled" ResourceKey="DiagramFamilyZMTBDDAccentMutedBrush"/>
+                                        </RadioButton.Resources>
+                                    </RadioButton>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
+                        </Grid>
                     </Border>
 
                     <Border
@@ -116,61 +206,126 @@
                     </Border>
 
                     <Border
-                        Padding="14"
                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
-                        <StackPanel Spacing="10">
-                            <TextBlock
-                                FontSize="18"
-                                FontWeight="SemiBold"
-                                Text="BDD truth table"/>
-                            <ListView
-                                MaxHeight="360"
-                                ItemsSource="{x:Bind ViewModel.TruthTableRows, Mode=OneWay}"
-                                SelectionMode="None">
-                                <ListView.Header>
-                                    <Grid
-                                        Padding="12,6"
-                                        ColumnDefinitions="56,*,88">
-                                        <TextBlock FontWeight="SemiBold" Text="Row"/>
+                        <Grid ColumnDefinitions="4,*">
+                            <Border
+                                Background="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                CornerRadius="6,0,0,6"/>
+                            <StackPanel
+                                Grid.Column="1"
+                                Padding="14"
+                                Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Foreground="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                        Text="BDD truth table"/>
+                                    <Border
+                                        Grid.Column="1"
+                                        Padding="8,2"
+                                        Background="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}, ConverterParameter=Soft}"
+                                        CornerRadius="4">
                                         <TextBlock
-                                            Grid.Column="1"
+                                            FontSize="12"
                                             FontWeight="SemiBold"
-                                            Text="Assignment"/>
-                                        <TextBlock
-                                            Grid.Column="2"
-                                            FontWeight="SemiBold"
-                                            Text="Value"/>
-                                    </Grid>
-                                </ListView.Header>
-                                <ListView.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:TruthTableRowViewModel">
+                                            Foreground="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                            Text="{x:Bind ViewModel.SelectedFamilyLabel, Mode=OneWay}"/>
+                                    </Border>
+                                </Grid>
+                                <ScrollViewer
+                                    MaxHeight="560"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
                                         <Grid
-                                            Padding="12,4"
-                                            ColumnDefinitions="56,*,88">
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                Text="{x:Bind RowLabel}"/>
-                                            <TextBlock
+                                            MinHeight="36"
+                                            ColumnDefinitions="Auto,62">
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.VariableNames, Mode=OneWay}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border
+                                                            Width="52"
+                                                            MinHeight="36"
+                                                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="0,0,1,1">
+                                                            <TextBlock
+                                                                FontWeight="SemiBold"
+                                                                Style="{StaticResource TruthTableVariableCellTextStyle}"
+                                                                Text="{Binding}"
+                                                                ToolTipService.ToolTip="{Binding}"/>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Border
                                                 Grid.Column="1"
-                                                VerticalAlignment="Center"
-                                                Text="{x:Bind AssignmentText}"
-                                                TextTrimming="CharacterEllipsis"/>
-                                            <ToggleSwitch
-                                                Grid.Column="2"
-                                                HorizontalAlignment="Right"
-                                                IsOn="{x:Bind IsOne}"
-                                                KeyUp="TruthValue_KeyUp"
-                                                OffContent="0"
-                                                OnContent="1"
-                                                Tag="{x:Bind Index}"
-                                                Tapped="TruthValue_Tapped"/>
+                                                Width="62"
+                                                MinHeight="36"
+                                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="0,0,0,1">
+                                                <TextBlock
+                                                    FontWeight="SemiBold"
+                                                    Style="{StaticResource TruthTableVariableCellTextStyle}"
+                                                    Text="f"/>
+                                            </Border>
                                         </Grid>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                        </StackPanel>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.TruthTableRows, Mode=OneWay}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:TruthTableRowViewModel">
+                                                    <Grid
+                                                        MinHeight="40"
+                                                        ColumnDefinitions="Auto,62">
+                                                        <ItemsControl ItemsSource="{x:Bind VariableValues}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <StackPanel Orientation="Horizontal"/>
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border
+                                                                        Width="52"
+                                                                        MinHeight="40"
+                                                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                                        BorderThickness="0,0,1,1">
+                                                                        <TextBlock
+                                                                            Style="{StaticResource TruthTableVariableCellTextStyle}"
+                                                                            Text="{Binding}"/>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <Button
+                                                            Grid.Column="1"
+                                                            Width="62"
+                                                            MinHeight="34"
+                                                            Margin="0,3,0,3"
+                                                            HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Center"
+                                                            VerticalAlignment="Stretch"
+                                                            Background="{x:Bind Value, Converter={StaticResource TruthValueBackgroundConverter}}"
+                                                            BorderBrush="{x:Bind Value, Converter={StaticResource TruthValueBorderConverter}, ConverterParameter=Border}"
+                                                            Click="TruthValueButton_Click"
+                                                            Content="{x:Bind Value}"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{x:Bind Value, Converter={StaticResource TruthValueForegroundConverter}, ConverterParameter=Foreground}"
+                                                            Tag="{x:Bind Index}"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </StackPanel>
             </ScrollViewer>

@@ -4,6 +4,36 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="DiagramFamilyBDDAccentBrush" Color="#60A5FA"/>
+                    <SolidColorBrush x:Key="DiagramFamilyBDDAccentSoftBrush" Color="#1E3A8A"/>
+                    <SolidColorBrush x:Key="DiagramFamilyBDDAccentMutedBrush" Color="#93C5FD"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZDDAccentBrush" Color="#34D399"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZDDAccentSoftBrush" Color="#064E3B"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZDDAccentMutedBrush" Color="#6EE7B7"/>
+                    <SolidColorBrush x:Key="DiagramFamilyMTBDDAccentBrush" Color="#F59E0B"/>
+                    <SolidColorBrush x:Key="DiagramFamilyMTBDDAccentSoftBrush" Color="#78350F"/>
+                    <SolidColorBrush x:Key="DiagramFamilyMTBDDAccentMutedBrush" Color="#FBBF24"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZMTBDDAccentBrush" Color="#A78BFA"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZMTBDDAccentSoftBrush" Color="#4C1D95"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZMTBDDAccentMutedBrush" Color="#C4B5FD"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="DiagramFamilyBDDAccentBrush" Color="#2563EB"/>
+                    <SolidColorBrush x:Key="DiagramFamilyBDDAccentSoftBrush" Color="#DBEAFE"/>
+                    <SolidColorBrush x:Key="DiagramFamilyBDDAccentMutedBrush" Color="#3B82F6"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZDDAccentBrush" Color="#059669"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZDDAccentSoftBrush" Color="#D1FAE5"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZDDAccentMutedBrush" Color="#10B981"/>
+                    <SolidColorBrush x:Key="DiagramFamilyMTBDDAccentBrush" Color="#D97706"/>
+                    <SolidColorBrush x:Key="DiagramFamilyMTBDDAccentSoftBrush" Color="#FEF3C7"/>
+                    <SolidColorBrush x:Key="DiagramFamilyMTBDDAccentMutedBrush" Color="#F59E0B"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZMTBDDAccentBrush" Color="#7C3AED"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZMTBDDAccentSoftBrush" Color="#EDE9FE"/>
+                    <SolidColorBrush x:Key="DiagramFamilyZMTBDDAccentMutedBrush" Color="#8B5CF6"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls"/>
             </ResourceDictionary.MergedDictionaries>

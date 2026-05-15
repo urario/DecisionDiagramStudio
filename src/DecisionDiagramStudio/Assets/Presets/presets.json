@@ -1,34 +1,42 @@
 [
   {
-    "id": "bdd.identity.a",
-    "label": "f = a",
-    "description": "One-variable identity function.",
-    "variableNames": [ "a" ],
-    "truthTableValues": [ 0, 1 ],
+    "id": "bdd.mux2",
+    "label": "2:1 multiplexer",
+    "description": "Selects d0 when s=0 and d1 when s=1.",
+    "variableNames": [ "s", "d0", "d1" ],
+    "truthTableValues": [ 0, 0, 1, 0, 0, 1, 1, 1 ],
     "defaultFamily": "BDD"
   },
   {
-    "id": "bdd.and",
-    "label": "f = a AND b",
-    "description": "Two-variable conjunction.",
-    "variableNames": [ "a", "b" ],
-    "truthTableValues": [ 0, 0, 0, 1 ],
+    "id": "bdd.full_adder.sum",
+    "label": "Full adder SUM",
+    "description": "Sum output of a one-bit full adder.",
+    "variableNames": [ "a", "b", "cin" ],
+    "truthTableValues": [ 0, 1, 1, 0, 1, 0, 0, 1 ],
     "defaultFamily": "BDD"
   },
   {
-    "id": "bdd.or",
-    "label": "f = a OR b",
-    "description": "Two-variable disjunction.",
-    "variableNames": [ "a", "b" ],
-    "truthTableValues": [ 0, 1, 1, 1 ],
+    "id": "bdd.full_adder.carry",
+    "label": "Full adder CARRY",
+    "description": "Carry output of a one-bit full adder.",
+    "variableNames": [ "a", "b", "cin" ],
+    "truthTableValues": [ 0, 0, 0, 1, 0, 1, 1, 1 ],
     "defaultFamily": "BDD"
   },
   {
-    "id": "bdd.xor",
-    "label": "f = a XOR b",
-    "description": "Two-variable exclusive disjunction.",
-    "variableNames": [ "a", "b" ],
-    "truthTableValues": [ 0, 1, 1, 0 ],
+    "id": "bdd.eq2",
+    "label": "2-bit equality",
+    "description": "True when a[1:0] equals b[1:0].",
+    "variableNames": [ "a0", "a1", "b0", "b1" ],
+    "truthTableValues": [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
+    "defaultFamily": "BDD"
+  },
+  {
+    "id": "bdd.one_hot4",
+    "label": "4-bit one-hot",
+    "description": "True when exactly one input bit is set.",
+    "variableNames": [ "a", "b", "c", "d" ],
+    "truthTableValues": [ 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 ],
     "defaultFamily": "BDD"
   }
 ]

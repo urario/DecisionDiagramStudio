@@ -139,6 +139,11 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     public ObservableCollection<TruthTableRowViewModel> TruthTableRows { get; } = [];
 
     /// <summary>
+    /// Gets the selected diagram family formatted for display.
+    /// </summary>
+    public string SelectedFamilyLabel => SelectedFamily.ToString();
+
+    /// <summary>
     /// Gets the command that applies the text in the variable-name input.
     /// </summary>
     public IRelayCommand ApplyVariableNamesCommand { get; }
@@ -284,6 +289,7 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedFamilyChanged(DiagramFamily value)
     {
+        OnPropertyChanged(nameof(SelectedFamilyLabel));
         _logger.LogInformation("Diagram family changed. Family={Family}", value);
     }
 
@@ -476,10 +482,12 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         var values = IntValueTable;
         for (var i = 0; i < values.Length; i++)
         {
+            var variableValues = BuildVariableValues(i, variableNames.Length);
             TruthTableRows.Add(new TruthTableRowViewModel(
                 i,
                 "#" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                FormatAssignment(i, variableNames),
+                FormatAssignment(variableValues, variableNames),
+                variableValues,
                 values[i]));
         }
     }
@@ -510,12 +518,23 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         return nextValues;
     }
 
-    private static string FormatAssignment(int rowIndex, IReadOnlyList<string> variableNames)
+    private static int[] BuildVariableValues(int rowIndex, int variableCount)
+    {
+        var variableValues = new int[variableCount];
+        for (var variable = 0; variable < variableCount; variable++)
+        {
+            variableValues[variable] = (rowIndex >> variable) & 1;
+        }
+
+        return variableValues;
+    }
+
+    private static string FormatAssignment(IReadOnlyList<int> variableValues, IReadOnlyList<string> variableNames)
     {
         var parts = new string[variableNames.Count];
         for (var variable = 0; variable < variableNames.Count; variable++)
         {
-            var value = ((rowIndex >> variable) & 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var value = variableValues[variable].ToString(System.Globalization.CultureInfo.InvariantCulture);
             parts[variable] = variableNames[variable] + "=" + value;
         }
 

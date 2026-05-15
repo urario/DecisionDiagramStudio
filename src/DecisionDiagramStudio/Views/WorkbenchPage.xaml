@@ -343,6 +343,11 @@
                         <TextBlock
                             Opacity="0.72"
                             Text="Reduced BDD and unreduced BDT preview"/>
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            Opacity="0.72"
+                            Text="{x:Bind ExplanationViewModel.ExplanationText, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords"/>
                     </StackPanel>
                     <Button
                         x:Name="ReductionToggleButton"

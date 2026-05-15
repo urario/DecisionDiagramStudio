@@ -1,7 +1,6 @@
 using System.ComponentModel;
-using System.Net;
-using System.Security.Cryptography;
 using DecisionDiagramStudio.Models;
+using DecisionDiagramStudio.Services.Interfaces;
 using DecisionDiagramStudio.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,6 +18,7 @@ public sealed partial class WorkbenchPage : Page
 {
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly SemaphoreSlim _documentNavigationGate = new(1, 1);
+    private readonly ISvgWebViewDocumentSource _svgDocumentSource;
     private readonly ILogger<WorkbenchPage> _logger;
     private CancellationTokenSource? _renderCancellation;
     private Task? _webViewInitializationTask;
@@ -35,6 +35,8 @@ public sealed partial class WorkbenchPage : Page
         ViewModel = App.Services.GetRequiredService<WorkbenchViewModel>();
         DiagramViewModel = App.Services.GetRequiredService<DiagramPanelViewModel>();
         StatisticsViewModel = App.Services.GetRequiredService<StatisticsViewModel>();
+        ExplanationViewModel = App.Services.GetRequiredService<ExplanationViewModel>();
+        _svgDocumentSource = App.Services.GetRequiredService<ISvgWebViewDocumentSource>();
         _logger = App.Services.GetRequiredService<ILogger<WorkbenchPage>>();
 
         InitializeComponent();
@@ -57,6 +59,11 @@ public sealed partial class WorkbenchPage : Page
     /// Gets the statistics view model.
     /// </summary>
     public StatisticsViewModel StatisticsViewModel { get; }
+
+    /// <summary>
+    /// Gets the explanation view model updated from validated WebView2 node-click messages.
+    /// </summary>
+    public ExplanationViewModel ExplanationViewModel { get; }
 
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
@@ -97,6 +104,7 @@ public sealed partial class WorkbenchPage : Page
         _logger.LogInformation("Workbench page unloaded.");
         ViewModel.PropertyChanged -= OnWorkbenchPropertyChanged;
         DiagramViewModel.PropertyChanged -= OnDiagramPropertyChanged;
+        UnwireDiagramWebViewEvents();
         CancelRender();
     }
 
@@ -413,7 +421,7 @@ public sealed partial class WorkbenchPage : Page
                     return;
                 }
 
-                await NavigateDiagramWebViewToStringAsync(CreateSvgDocument(svgContent));
+                await NavigateDiagramWebViewToStringAsync(_svgDocumentSource.CreateDocument(svgContent));
             }).ConfigureAwait(false);
         }
         finally
@@ -438,6 +446,7 @@ public sealed partial class WorkbenchPage : Page
         try
         {
             await DiagramWebView.EnsureCoreWebView2Async();
+            WireDiagramWebViewEvents();
             _isWebViewReady = true;
             _logger.LogDebug("Diagram WebView2 initialized.");
         }
@@ -448,6 +457,60 @@ public sealed partial class WorkbenchPage : Page
                 ex.GetType().Name);
             _webViewInitializationTask = null;
             throw;
+        }
+    }
+
+    private void WireDiagramWebViewEvents()
+    {
+        var coreWebView = DiagramWebView.CoreWebView2;
+        coreWebView.Settings.IsWebMessageEnabled = true;
+        coreWebView.Settings.AreDefaultScriptDialogsEnabled = false;
+        coreWebView.Settings.IsStatusBarEnabled = false;
+#if !DEBUG
+        coreWebView.Settings.AreDevToolsEnabled = false;
+#endif
+        coreWebView.WebMessageReceived -= OnDiagramWebMessageReceived;
+        coreWebView.WebMessageReceived += OnDiagramWebMessageReceived;
+        coreWebView.NavigationStarting -= OnDiagramNavigationStarting;
+        coreWebView.NavigationStarting += OnDiagramNavigationStarting;
+    }
+
+    private void UnwireDiagramWebViewEvents()
+    {
+        if (!_isWebViewReady)
+        {
+            return;
+        }
+
+        var coreWebView = DiagramWebView.CoreWebView2;
+        coreWebView.WebMessageReceived -= OnDiagramWebMessageReceived;
+        coreWebView.NavigationStarting -= OnDiagramNavigationStarting;
+        _isWebViewReady = false;
+        _webViewInitializationTask = null;
+    }
+
+    private void OnDiagramWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs args)
+    {
+        if (ViewModel.CurrentSession is not { } session)
+        {
+            return;
+        }
+
+        if (ExplanationViewModel.TrySelectNodeFromWebMessage(args.WebMessageAsJson, session))
+        {
+            _logger.LogDebug("Diagram node-click message accepted.");
+            return;
+        }
+
+        _logger.LogWarning("Diagram WebView2 message failed schema validation.");
+    }
+
+    private void OnDiagramNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
+    {
+        if (!string.Equals(args.Uri, "about:blank", StringComparison.OrdinalIgnoreCase))
+        {
+            args.Cancel = true;
+            _logger.LogWarning("Blocked unexpected WebView2 navigation. Uri={Uri}", args.Uri);
         }
     }
 
@@ -533,154 +596,5 @@ public sealed partial class WorkbenchPage : Page
         _renderCancellation?.Dispose();
         _renderCancellation = null;
         _logger.LogTrace("Pending diagram render canceled.");
-    }
-
-    private static string CreateSvgDocument(string svgContent)
-    {
-        var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
-        const string Style = "html,body{height:100%;margin:0;background:#f8f8f8;color:#1f1f1f;font-family:Segoe UI,Arial,sans-serif;overflow:hidden;}" +
-            ".surface{position:relative;height:100%;overflow:hidden;box-sizing:border-box;}" +
-            ".viewport{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;}" +
-            ".viewport.is-panning{cursor:grabbing;}" +
-            ".diagram-layer{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;}" +
-            ".diagram-layer svg{display:block;max-width:none;height:auto;}" +
-            ".controls{position:absolute;right:12px;top:12px;z-index:2;display:flex;gap:8px;}" +
-            ".controls button{border:1px solid #c7c7c7;border-radius:4px;background:#ffffff;color:#1f1f1f;font:12px Segoe UI,Arial,sans-serif;padding:5px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.12);}" +
-            ".controls button:hover{background:#f0f0f0;}" +
-            ".placeholder{height:100%;display:flex;align-items:center;justify-content:center;color:#666;font-size:14px;}";
-        const string Script = """
-(() => {
-    const viewport = document.getElementById('diagramViewport');
-    const layer = document.getElementById('diagramLayer');
-    const resetButton = document.getElementById('resetZoomButton');
-    if (!viewport || !layer) {
-        return;
-    }
-
-    const state = {
-        scale: 1,
-        x: 0,
-        y: 0,
-        pointerId: null,
-        startClientX: 0,
-        startClientY: 0,
-        startX: 0,
-        startY: 0
-    };
-    const minScale = 0.2;
-    const maxScale = 8;
-
-    function clamp(value, min, max) {
-        return Math.min(Math.max(value, min), max);
-    }
-
-    function render() {
-        layer.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
-    }
-
-    function fitDiagram() {
-        const svg = layer.querySelector('svg');
-        const viewportRect = viewport.getBoundingClientRect();
-        if (!svg || viewportRect.width <= 0 || viewportRect.height <= 0) {
-            return;
-        }
-
-        layer.style.transform = 'none';
-        const svgRect = svg.getBoundingClientRect();
-        if (svgRect.width <= 0 || svgRect.height <= 0) {
-            return;
-        }
-
-        const padding = 48;
-        const scaleX = Math.max((viewportRect.width - padding) / svgRect.width, minScale);
-        const scaleY = Math.max((viewportRect.height - padding) / svgRect.height, minScale);
-        state.scale = clamp(Math.min(scaleX, scaleY, 1), minScale, maxScale);
-        state.x = (viewportRect.width - (svgRect.width * state.scale)) / 2;
-        state.y = (viewportRect.height - (svgRect.height * state.scale)) / 2;
-        render();
-    }
-
-    function zoomAt(clientX, clientY, scaleFactor) {
-        const viewportRect = viewport.getBoundingClientRect();
-        const pointerX = clientX - viewportRect.left;
-        const pointerY = clientY - viewportRect.top;
-        const diagramX = (pointerX - state.x) / state.scale;
-        const diagramY = (pointerY - state.y) / state.scale;
-        const nextScale = clamp(state.scale * scaleFactor, minScale, maxScale);
-        state.x = pointerX - (diagramX * nextScale);
-        state.y = pointerY - (diagramY * nextScale);
-        state.scale = nextScale;
-        render();
-    }
-
-    viewport.addEventListener('wheel', event => {
-        event.preventDefault();
-        const scaleFactor = Math.exp(-event.deltaY * 0.001);
-        zoomAt(event.clientX, event.clientY, scaleFactor);
-    }, { passive: false });
-
-    viewport.addEventListener('pointerdown', event => {
-        if (event.button !== 0) {
-            return;
-        }
-
-        state.pointerId = event.pointerId;
-        state.startClientX = event.clientX;
-        state.startClientY = event.clientY;
-        state.startX = state.x;
-        state.startY = state.y;
-        viewport.classList.add('is-panning');
-        viewport.setPointerCapture(event.pointerId);
-    });
-
-    viewport.addEventListener('pointermove', event => {
-        if (state.pointerId !== event.pointerId) {
-            return;
-        }
-
-        state.x = state.startX + event.clientX - state.startClientX;
-        state.y = state.startY + event.clientY - state.startClientY;
-        render();
-    });
-
-    function endPan(event) {
-        if (state.pointerId !== event.pointerId) {
-            return;
-        }
-
-        state.pointerId = null;
-        viewport.classList.remove('is-panning');
-        if (viewport.hasPointerCapture(event.pointerId)) {
-            viewport.releasePointerCapture(event.pointerId);
-        }
-    }
-
-    viewport.addEventListener('pointerup', endPan);
-    viewport.addEventListener('pointercancel', endPan);
-    viewport.addEventListener('dblclick', fitDiagram);
-    resetButton?.addEventListener('click', fitDiagram);
-    window.addEventListener('resize', fitDiagram);
-    requestAnimationFrame(fitDiagram);
-})();
-""";
-        var csp = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-" + nonce + "'; object-src 'none'; base-uri 'none'";
-        var body = string.IsNullOrWhiteSpace(svgContent)
-            ? "<div class=\"placeholder\">Build a diagram to preview SVG.</div>"
-            : "<div class=\"controls\"><button id=\"resetZoomButton\" type=\"button\">Reset zoom</button></div>" +
-                "<div id=\"diagramViewport\" class=\"viewport\"><div id=\"diagramLayer\" class=\"diagram-layer\">" +
-                svgContent +
-                "</div></div>";
-
-        return "<!doctype html><html><head><meta http-equiv=\"Content-Security-Policy\" content=\"" +
-            WebUtility.HtmlEncode(csp) +
-            "\"><style>" +
-            Style +
-            "</style></head><body><div class=\"surface\">" +
-            body +
-            "</div><script nonce=\"" +
-            nonce +
-            "\">" +
-            Script +
-            "</script></body></html>";
     }
 }

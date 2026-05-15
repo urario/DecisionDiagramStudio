@@ -46,6 +46,7 @@ public partial class App : Application
         services.AddSingleton<IDiagramService, DiagramService>();
         services.AddSingleton<IGraphvizService, GraphvizService>();
         services.AddSingleton<IPresetService, PresetService>();
+        services.AddSingleton<ISvgWebViewDocumentSource, SvgWebViewDocumentSource>();
         services.AddSingleton<Commands.CommandStack>();
         services.AddSingleton<WorkbenchViewModel>();
         services.AddSingleton<DiagramPanelViewModel>();

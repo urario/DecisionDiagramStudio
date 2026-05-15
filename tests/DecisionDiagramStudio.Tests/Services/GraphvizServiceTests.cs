@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DecisionDiagramStudio.Models;
 using DecisionDiagramStudio.Services;
 using DecisionDiagramStudio.Services.Interfaces;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -58,5 +60,41 @@ public sealed class GraphvizServiceTests
 
         // Assert
         StringAssert.StartsWith(svg, "<svg", "Graphviz output should be normalized to the SVG element.");
+    }
+
+    /// <summary>
+    /// Verifies the v0.1 warm-path performance target when Graphviz is installed.
+    /// </summary>
+    [TestMethod]
+    public async Task BuildRenderAndCreateDocument_FourVariableBdd_WhenGraphvizAvailable_ShouldCompleteWithinThreeHundredMilliseconds()
+    {
+        // Arrange
+        var graphvizService = new GraphvizService();
+        if (!graphvizService.IsAvailable())
+        {
+            return;
+        }
+
+        var diagramService = new DiagramService();
+        var documentSource = new SvgWebViewDocumentSource();
+        var variableNames = new[] { "a", "b", "c", "d" };
+        var values = Enumerable.Range(0, 16).Select(i => i & 1).ToArray();
+
+        await graphvizService.RenderSvgAsync("digraph Warmup { a -> b }", CancellationToken.None);
+        _ = await diagramService.BuildAsync(variableNames, values, DiagramFamily.BDD, CancellationToken.None);
+
+        // Act
+        var stopwatch = Stopwatch.StartNew();
+        var session = await diagramService.BuildAsync(variableNames, values, DiagramFamily.BDD, CancellationToken.None);
+        var svg = await graphvizService.RenderSvgAsync(session.DotText, CancellationToken.None);
+        _ = documentSource.CreateDocument(svg);
+        stopwatch.Stop();
+
+        // Assert
+        Assert.IsTrue(
+            stopwatch.ElapsedMilliseconds <= 300,
+            "Warm 4-variable BDD build -> SVG render -> WebView document creation should complete within 300 ms. Actual: "
+            + stopwatch.ElapsedMilliseconds.ToString()
+            + " ms.");
     }
 }

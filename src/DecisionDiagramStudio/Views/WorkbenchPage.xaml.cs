@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using DecisionDiagramStudio.Models;
 using DecisionDiagramStudio.Services.Interfaces;
 using DecisionDiagramStudio.ViewModels;
@@ -181,6 +182,36 @@ public sealed partial class WorkbenchPage : Page
         }
     }
 
+    private void ValueTableTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox { DataContext: TruthTableRowViewModel row } textBox)
+        {
+            return;
+        }
+
+        if (!int.TryParse(textBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
+            ShowError("Value-table cells must contain integer values.");
+            textBox.Text = row.ValueText;
+            return;
+        }
+
+        try
+        {
+            _logger.LogDebug("Value-table cell edited. RowIndex={RowIndex}", row.Index);
+            ViewModel.ChangeValueTableCell(row.Index, value);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(
+                "Value-table edit handling failed. RowIndex={RowIndex} ExceptionType={ExceptionType}",
+                row.Index,
+                ex.GetType().Name);
+            ShowError(ex.Message);
+            textBox.Text = row.ValueText;
+        }
+    }
+
     private async void CopyTruthTableCsvButton_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel.CurrentSession is null)
@@ -323,7 +354,7 @@ public sealed partial class WorkbenchPage : Page
             UpdateErrorInfoBar();
         }
 
-        if (e.PropertyName is nameof(WorkbenchViewModel.SelectedFamily) or nameof(WorkbenchViewModel.IsBddInputVisible) or nameof(WorkbenchViewModel.IsZddInputVisible))
+        if (e.PropertyName is nameof(WorkbenchViewModel.SelectedFamily) or nameof(WorkbenchViewModel.IsBddInputVisible) or nameof(WorkbenchViewModel.IsZddInputVisible) or nameof(WorkbenchViewModel.IsMtbddInputVisible))
         {
             UpdateFamilyInputVisibility();
         }
@@ -647,6 +678,7 @@ public sealed partial class WorkbenchPage : Page
     {
         BddTruthTablePanel.Visibility = ViewModel.IsBddInputVisible ? Visibility.Visible : Visibility.Collapsed;
         ZddSetInputPanel.Visibility = ViewModel.IsZddInputVisible ? Visibility.Visible : Visibility.Collapsed;
+        MtbddValueTablePanel.Visibility = ViewModel.IsMtbddInputVisible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdateStatus()
@@ -665,6 +697,16 @@ public sealed partial class WorkbenchPage : Page
                 " | Terminals: " + StatisticsViewModel.ReachableTerminalCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                 " | Total nodes: " + StatisticsViewModel.TotalNodeCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                 " | Sets: " + StatisticsViewModel.SetCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return;
+        }
+
+        if (StatisticsViewModel.Session.Family is DiagramFamily.MTBDD or DiagramFamily.ZMTBDD)
+        {
+            StatusInfoBar.Message =
+                "Variables: " + StatisticsViewModel.VariableCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " | " + StatisticsViewModel.Session.Family.ToString() + " nodes: " + StatisticsViewModel.ReachableNodeCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " | Values: " + StatisticsViewModel.ReachableTerminalCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " | Total nodes: " + StatisticsViewModel.TotalNodeCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
             return;
         }
 

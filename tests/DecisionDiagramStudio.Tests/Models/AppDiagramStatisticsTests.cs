@@ -175,4 +175,60 @@ public sealed class AppDiagramStatisticsTests
         // Assert
         Assert.AreEqual("setCount", exception.ParamName, "Negative ZDD set counts should identify the setCount parameter.");
     }
+
+    /// <summary>
+    /// Verifies that MTBDD statistics copy common counts without BDD/ZDD-only derived fields.
+    /// </summary>
+    [TestMethod]
+    public void ForMtbdd_WithDistinctTerminals_ShouldCopyCommonCounts()
+    {
+        // Arrange
+        var statistics = new DiagramStatistics
+        {
+            ReachableNodeCount = 3,
+            ReachableTerminalCount = 4,
+            TotalNodeCount = 3,
+            VariableCount = 2,
+        };
+
+        // Act
+        var actual = AppDiagramStatistics.ForMtbdd(statistics);
+
+        // Assert
+        Assert.AreEqual(3, actual.ReachableNodeCount, "MTBDD reachable nodes should be copied.");
+        Assert.AreEqual(4, actual.ReachableTerminalCount, "MTBDD terminal count should represent distinct integer results.");
+        Assert.AreEqual(3, actual.TotalNodeCount, "MTBDD total nodes should be copied.");
+        Assert.AreEqual(2, actual.VariableCount, "MTBDD variable count should be copied.");
+        Assert.AreEqual(0, actual.BdtNodeCount, "MTBDD statistics should not calculate BDD-only BDT nodes.");
+        Assert.AreEqual(0, actual.ReducedCount, "MTBDD statistics should not calculate BDD-only reduced count.");
+        Assert.AreEqual(0L, actual.SetCount, "MTBDD statistics should not report ZDD set count.");
+    }
+
+    /// <summary>
+    /// Verifies that ZMTBDD statistics reject null input and copy sparse terminal counts.
+    /// </summary>
+    [TestMethod]
+    public void ForZmtbdd_WithSparseTerminals_ShouldCopyCommonCounts()
+    {
+        // Arrange
+        var statistics = new DiagramStatistics
+        {
+            ReachableNodeCount = 1,
+            ReachableTerminalCount = 2,
+            TotalNodeCount = 1,
+            VariableCount = 2,
+        };
+
+        // Act
+        var actual = AppDiagramStatistics.ForZmtbdd(statistics);
+
+        // Assert
+        Assert.AreEqual(1, actual.ReachableNodeCount, "ZMTBDD reachable nodes should be copied.");
+        Assert.AreEqual(2, actual.ReachableTerminalCount, "ZMTBDD terminal count should include sparse integer outputs.");
+        Assert.AreEqual(1, actual.TotalNodeCount, "ZMTBDD total nodes should be copied.");
+        Assert.AreEqual(2, actual.VariableCount, "ZMTBDD variable count should be copied.");
+        Assert.ThrowsException<ArgumentNullException>(
+            () => AppDiagramStatistics.ForZmtbdd(null!),
+            "Null ZMTBDD statistics should fail at the model boundary.");
+    }
 }

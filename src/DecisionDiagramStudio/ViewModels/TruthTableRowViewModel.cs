@@ -31,4 +31,9 @@ public sealed record TruthTableRowViewModel(
     /// Gets a value indicating whether the row value is one.
     /// </summary>
     public bool IsOne => Value == 1;
+
+    /// <summary>
+    /// Gets the row value formatted for text input.
+    /// </summary>
+    public string ValueText => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }

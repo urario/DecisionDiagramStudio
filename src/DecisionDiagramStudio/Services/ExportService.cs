@@ -107,9 +107,9 @@ public sealed class ExportService : IExportService
 
     internal static string CreateTruthTableText(DiagramSession session, ExportTableFormat format)
     {
-        if (session.Family != DiagramFamily.BDD || session.IntValueTable is null)
+        if (session.IntValueTable is null || session.Family == DiagramFamily.ZDD)
         {
-            throw new NotSupportedException("Truth table export is currently supported only for BDD sessions.");
+            throw new NotSupportedException("Value table export is supported for BDD, MTBDD, and ZMTBDD sessions.");
         }
 
         var table = BuildTruthTableModel(session);
@@ -126,7 +126,8 @@ public sealed class ExportService : IExportService
     {
         var variableNames = session.VariableNames;
         var values = session.IntValueTable!;
-        var columns = variableNames.Concat(["f"]).ToArray();
+        var resultColumn = session.Family == DiagramFamily.BDD ? "f" : "Value";
+        var columns = variableNames.Concat([resultColumn]).ToArray();
         var rows = new List<TableRow>(values.Length);
 
         for (var rowIndex = 0; rowIndex < values.Length; rowIndex++)
@@ -141,6 +142,7 @@ public sealed class ExportService : IExportService
             rows.Add(new TableRow(cells));
         }
 
-        return new TableModel("BDD Truth Table", columns, rows);
+        var title = session.Family == DiagramFamily.BDD ? "BDD Truth Table" : session.Family.ToString() + " Value Table";
+        return new TableModel(title, columns, rows);
     }
 }

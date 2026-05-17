@@ -8,11 +8,11 @@ namespace DecisionDiagramStudio.Services.Interfaces;
 public interface IDiagramService
 {
     /// <summary>
-    /// Builds a decision diagram session from an integer value table.
+    /// Builds a BDD, MTBDD, or ZMTBDD session from an integer value table.
     /// </summary>
     /// <param name="variableNames">The variable names in least-significant-bit order.</param>
-    /// <param name="intValueTable">The input value table for the selected diagram family.</param>
-    /// <param name="family">The diagram family to build.</param>
+    /// <param name="intValueTable">The input value table for the selected diagram family. BDD values must be 0 or 1.</param>
+    /// <param name="family">The diagram family to build. Must be BDD, MTBDD, or ZMTBDD.</param>
     /// <param name="ct">A cancellation token for abandoning the build.</param>
     /// <returns>The generated application-owned diagram session.</returns>
     Task<DiagramSession> BuildAsync(string[] variableNames, int[] intValueTable, DiagramFamily family, CancellationToken ct);

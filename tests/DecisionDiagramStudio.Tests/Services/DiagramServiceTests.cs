@@ -105,7 +105,7 @@ public sealed class DiagramServiceTests
     }
 
     /// <summary>
-    /// Verifies that v0.1 rejects non-BDD BuildAsync requests.
+    /// Verifies that the integer-table overload rejects ZDD BuildAsync requests.
     /// </summary>
     [TestMethod]
     public async Task BuildAsync_UnsupportedFamily_ShouldThrow_NotSupportedException()
@@ -120,7 +120,7 @@ public sealed class DiagramServiceTests
                 new[] { 0, 1 },
                 DiagramFamily.ZDD,
                 CancellationToken.None),
-            "v0.1 should reject non-BDD builds.");
+            "ZDD builds should use the set-family overload.");
     }
 
     /// <summary>
@@ -204,6 +204,35 @@ public sealed class DiagramServiceTests
     }
 
     /// <summary>
+    /// Verifies that MTBDD and ZMTBDD library value-table diagnostics round-trip integer inputs.
+    /// </summary>
+    [TestMethod]
+    public void MtbddAndZmtbddDiagnostics_ValueTable_ShouldRoundTripIntegerInputs()
+    {
+        // Arrange
+        var variableNames = new[] { "a", "b" };
+        var values = new[] { 0, -1, 3, 5 };
+
+        var mtbddManager = new MtbddManager();
+        var zmtbddManager = new ZmtbddManager();
+        foreach (var variableName in variableNames)
+        {
+            _ = mtbddManager.GetOrAddVariable(variableName);
+            _ = zmtbddManager.GetOrAddVariable(variableName);
+        }
+
+        // Act
+        var mtbdd = mtbddManager.Create(values);
+        var zmtbdd = zmtbddManager.Create(values);
+        var mtbddActual = ExtractIntegerResultValues(MtbddDiagnostics.BuildValueTable(mtbddManager, mtbdd));
+        var zmtbddActual = ExtractIntegerResultValues(ZmtbddDiagnostics.BuildValueTable(zmtbddManager, zmtbdd));
+
+        // Assert
+        CollectionAssert.AreEqual(values, mtbddActual, "MTBDD value-table diagnostics should round-trip every integer row.");
+        CollectionAssert.AreEqual(values, zmtbddActual, "ZMTBDD value-table diagnostics should round-trip every integer row.");
+    }
+
+    /// <summary>
     /// Verifies that a same-sized variable schema change resets the internal BDD manager.
     /// </summary>
     [TestMethod]
@@ -245,6 +274,54 @@ public sealed class DiagramServiceTests
         CollectionAssert.AreEqual(new[] { 0, 1, 2 }, session.VariableOrder, "BDD variables should use LSB-first order.");
         Assert.AreEqual(3, session.Statistics.VariableCount, "Statistics should reflect the BDD variable count.");
         StringAssert.StartsWith(session.DotText, "digraph BDD");
+    }
+
+    /// <summary>
+    /// Verifies that the MTBDD BuildAsync path materializes integer-valued sessions.
+    /// </summary>
+    [TestMethod]
+    public async Task BuildAsync_MtbddPath_ShouldReturnSessionWithDotAndValueStatistics()
+    {
+        // Arrange
+        var service = new DiagramService();
+        var variableNames = new[] { "a", "b" };
+        var values = new[] { 0, 1, 2, 3 };
+
+        // Act
+        var session = await service.BuildAsync(variableNames, values, DiagramFamily.MTBDD, CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(DiagramFamily.MTBDD, session.Family, "BuildAsync should return an MTBDD session.");
+        CollectionAssert.AreEqual(variableNames, session.VariableNames, "The MTBDD session should keep a variable-name snapshot.");
+        CollectionAssert.AreEqual(values, session.IntValueTable, "The MTBDD session should keep the integer value table.");
+        Assert.AreEqual(2, session.Statistics.VariableCount, "Statistics should reflect the MTBDD variable count.");
+        Assert.AreEqual(4, session.Statistics.ReachableTerminalCount, "Each distinct integer output should become a reachable terminal.");
+        StringAssert.StartsWith(session.DotText, "digraph MTBDD");
+    }
+
+    /// <summary>
+    /// Verifies that the ZMTBDD BuildAsync path uses zero-suppressed semantics for sparse value tables.
+    /// </summary>
+    [TestMethod]
+    public async Task BuildAsync_ZmtbddPath_ShouldReturnNoMoreReachableNodesThanMtbddForSparseTable()
+    {
+        // Arrange
+        var variableNames = new[] { "a", "b" };
+        var values = new[] { 0, 0, 0, 7 };
+        var mtbddService = new DiagramService();
+        var zmtbddService = new DiagramService();
+
+        // Act
+        var mtbdd = await mtbddService.BuildAsync(variableNames, values, DiagramFamily.MTBDD, CancellationToken.None);
+        var zmtbdd = await zmtbddService.BuildAsync(variableNames, values, DiagramFamily.ZMTBDD, CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(DiagramFamily.ZMTBDD, zmtbdd.Family, "BuildAsync should return a ZMTBDD session.");
+        CollectionAssert.AreEqual(values, zmtbdd.IntValueTable, "The ZMTBDD session should keep the sparse integer value table.");
+        Assert.IsTrue(
+            zmtbdd.Statistics.ReachableNodeCount <= mtbdd.Statistics.ReachableNodeCount,
+            "A sparse ZMTBDD should use no more reachable nodes than the dense MTBDD for the same table.");
+        StringAssert.StartsWith(zmtbdd.DotText, "digraph ZMTBDD");
     }
 
     /// <summary>
@@ -485,6 +562,18 @@ public sealed class DiagramServiceTests
         for (var i = 0; i < table.Rows.Count; i++)
         {
             values[i] = table.Rows[i].Cells[resultColumn] == "True" ? 1 : 0;
+        }
+
+        return values;
+    }
+
+    private static int[] ExtractIntegerResultValues(TableModel table)
+    {
+        var resultColumn = table.Columns.Count - 1;
+        var values = new int[table.Rows.Count];
+        for (var i = 0; i < table.Rows.Count; i++)
+        {
+            values[i] = int.Parse(table.Rows[i].Cells[resultColumn], System.Globalization.CultureInfo.InvariantCulture);
         }
 
         return values;

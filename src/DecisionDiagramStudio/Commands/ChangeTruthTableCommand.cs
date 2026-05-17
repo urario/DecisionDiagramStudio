@@ -4,7 +4,7 @@ using DecisionDiagramStudio.Services.Interfaces;
 namespace DecisionDiagramStudio.Commands;
 
 /// <summary>
-/// Rebuilds a diagram session when a BDD truth table changes.
+/// Rebuilds a diagram session when an integer value table changes.
 /// </summary>
 public sealed class ChangeTruthTableCommand : IUndoableCommand
 {

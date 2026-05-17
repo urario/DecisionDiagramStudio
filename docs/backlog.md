@@ -271,9 +271,9 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SVC-MT-001 | SVC-BDD-001 | `DiagramService.BuildAsync` の MTBDD パスの実装: `MtbddManager.Create(IReadOnlyList<int>)` → `GetStatistics()` → `ToDot()` を critical section 内で実行する | 2変数の整数値テーブル `[0, 1, 2, 3]` で `BuildAsync` を呼び、`DiagramSession.DotText` が有効な DOT 文字列になる | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| SVC-MT-002 | SVC-BDD-001 | `DiagramService.BuildAsync` の ZMTBDD パスの実装: `ZmtbddManager.Create(IReadOnlyList<int>)` を使用する | MTBDD と同一入力に対して ZMTBDD の `ReachableNodeCount ≤ MTBDD.ReachableNodeCount` が成立する（全0値テーブルの場合） | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| SVC-MT-003 | - | 全ファミリーに対する `AppDiagramStatistics` ファクトリメソッドの完成（MTBDD/ZMTBDD 用: `ForMtbdd`, `ForZmtbdd`） | MTBDD の `ReachableTerminalCount` が異なる整数値の数と一致する | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| SVC-MT-001 | SVC-BDD-001 | `DiagramService.BuildAsync` の MTBDD パスの実装: `MtbddManager.Create(IReadOnlyList<int>)` → `GetStatistics()` → `ToDot()` を critical section 内で実行する | 2変数の整数値テーブル `[0, 1, 2, 3]` で `BuildAsync` を呼び、`DiagramSession.DotText` が有効な DOT 文字列になる | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `BuildAsync_MtbddPath_ShouldReturnSessionWithDotAndValueStatistics` 合格。`dotnet test tests\DecisionDiagramStudio.Tests\DecisionDiagramStudio.Tests.csproj -v:minimal`: 合格 86 / 失敗 0 |
+| SVC-MT-002 | SVC-BDD-001 | `DiagramService.BuildAsync` の ZMTBDD パスの実装: `ZmtbddManager.Create(IReadOnlyList<int>)` を使用する | MTBDD と同一入力に対して ZMTBDD の `ReachableNodeCount ≤ MTBDD.ReachableNodeCount` が成立する（全0値テーブルの場合） | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `BuildAsync_ZmtbddPath_ShouldReturnNoMoreReachableNodesThanMtbddForSparseTable` 合格。`dotnet test`: 合格 86 / 失敗 0 |
+| SVC-MT-003 | - | 全ファミリーに対する `AppDiagramStatistics` ファクトリメソッドの完成（MTBDD/ZMTBDD 用: `ForMtbdd`, `ForZmtbdd`） | MTBDD の `ReachableTerminalCount` が異なる整数値の数と一致する | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `ForMtbdd_WithDistinctTerminals_ShouldCopyCommonCounts`, `ForZmtbdd_WithSparseTerminals_ShouldCopyCommonCounts` 合格。`dotnet test`: 合格 86 / 失敗 0 |
 
 ---
 
@@ -281,8 +281,8 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| VM-MT-001 | VM-BDD-001 | `WorkbenchViewModel` に MTBDD/ZMTBDD の整数値テーブル入力プロパティを追加し、ファミリー切り替えで入力 UI が適切に切り替わる | MTBDD 選択時に整数値入力グリッドが `IntValueTable` にバインドされ、`BuildAsync` が MTBDD パスで実行される | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| VM-MT-002 | - | `ExplanationViewModel` の拡充: 全4ファミリーに対応した解説テキスト生成（ノード種別・変数・値の説明） | BDD/ZDD/MTBDD/ZMTBDD それぞれのノードをクリックした際に適切な解説テキストが表示される | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| VM-MT-001 | VM-BDD-001 | `WorkbenchViewModel` に MTBDD/ZMTBDD の整数値テーブル入力プロパティを追加し、ファミリー切り替えで入力 UI が適切に切り替わる | MTBDD 選択時に整数値入力グリッドが `IntValueTable` にバインドされ、`BuildAsync` が MTBDD パスで実行される | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `SelectedFamily_MtbddValueEdit_ShouldBuildMtbddSession`, `SelectedFamily_Zmtbdd_ShouldBuildZmtbddSession` 合格。`dotnet test`: 合格 86 / 失敗 0 |
+| VM-MT-002 | - | `ExplanationViewModel` の拡充: 全4ファミリーに対応した解説テキスト生成（ノード種別・変数・値の説明） | BDD/ZDD/MTBDD/ZMTBDD それぞれのノードをクリックした際に適切な解説テキストが表示される | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `SelectNode_AllFamilies_ShouldMentionFamilyVariablesAndValues`, `TrySelectNodeFromWebMessage_TerminalNode_ShouldUpdateExplanation` 合格。`dotnet test`: 合格 86 / 失敗 0 |
 
 ---
 
@@ -290,8 +290,8 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| VIEW-MT-001 | VIEW-BDD-002 | MTBDD/ZMTBDD の整数値テーブル入力グリッドの実装: ファミリー選択で表示/非表示が切り替わる | MTBDD 選択時に整数値入力セルが表示され、入力した値が `IntValueTable` に反映される | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Todo | - |
-| VIEW-MT-002 | VIEW-MT-001 | 解説パネル（`ExplanationPanel`）の全ファミリー対応 UI の実装 | 全4ファミリーでノードクリック後に解説テキストが表示される | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Todo | - |
+| VIEW-MT-001 | VIEW-BDD-002 | MTBDD/ZMTBDD の整数値テーブル入力グリッドの実装: ファミリー選択で表示/非表示が切り替わる | MTBDD 選択時に整数値入力セルが表示され、入力した値が `IntValueTable` に反映される | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Done | `WorkbenchPage.xaml` に `MtbddValueTablePanel` を追加し MTBDD/ZMTBDD 選択時のみ表示。VS MSBuild x64 成功、VM 表示切替テスト合格 |
+| VIEW-MT-002 | VIEW-MT-001 | 解説パネル（`ExplanationPanel`）の全ファミリー対応 UI の実装 | 全4ファミリーでノードクリック後に解説テキストが表示される | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Done | `ExplanationPanel` を追加し WebView2 nodeClick → `ExplanationViewModel` を全ファミリー対応。VS MSBuild x64 成功、解説 VM テスト合格 |
 
 ---
 
@@ -299,8 +299,8 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| TEST-MT-001 | SVC-MT-001 | MTBDD/ZMTBDD の統合テスト: `Create(IReadOnlyList<int>)` で構築した図の `BuildValueTable()` 結果が元の入力テーブルと一致する（2変数・全整数値パターン） | 2変数 MTBDD と ZMTBDD のテーブル往復テストが合格する | 統合テスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| TEST-MT-002 | - | v0.3 完了基準チェック: 全テスト合格 + 全4ファミリーで構築・可視化・ノードクリック解説の手動動作確認 | テスト合格ログ + 全ファミリー動作確認記録 | 統合確認 | N/A | N/A | テスト合格ログ + 動作記録 | N/A | N/A | Todo | - |
+| TEST-MT-001 | SVC-MT-001 | MTBDD/ZMTBDD の統合テスト: `Create(IReadOnlyList<int>)` で構築した図の `BuildValueTable()` 結果が元の入力テーブルと一致する（2変数・全整数値パターン） | 2変数 MTBDD と ZMTBDD のテーブル往復テストが合格する | 統合テスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `MtbddAndZmtbddDiagnostics_ValueTable_ShouldRoundTripIntegerInputs` 合格。`dotnet test`: 合格 86 / 失敗 0 |
+| TEST-MT-002 | - | v0.3 完了基準チェック: 全テスト合格 + 全4ファミリーで構築・可視化・ノードクリック解説の手動動作確認 | テスト合格ログ + 全ファミリー動作確認記録 | 統合確認 | N/A | N/A | テスト合格ログ + 動作記録 | N/A | N/A | Done | `dotnet test tests\DecisionDiagramStudio.Tests\DecisionDiagramStudio.Tests.csproj -v:minimal`: 合格 86 / 失敗 0。`--collect:"XPlat Code Coverage"` 成功: `tests\DecisionDiagramStudio.Tests\TestResults\a5fda5a9-421f-49e1-aff6-32fa2acad0c7\coverage.cobertura.xml`。VS MSBuild x64: 成功。BDD/ZDD/MTBDD/ZMTBDD の build path と nodeClick 解説は自動テストで確認 |
 
 ---
 

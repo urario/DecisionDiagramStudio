@@ -93,6 +93,42 @@ public sealed record AppDiagramStatistics
         };
     }
 
+    /// <summary>
+    /// Creates application statistics for an MTBDD from library statistics.
+    /// </summary>
+    /// <param name="statistics">The library statistics for the MTBDD root.</param>
+    /// <returns>Application statistics with common diagram counts copied.</returns>
+    public static AppDiagramStatistics ForMtbdd(DiagramStatistics statistics)
+    {
+        return ForMultiTerminal(statistics);
+    }
+
+    /// <summary>
+    /// Creates application statistics for a ZMTBDD from library statistics.
+    /// </summary>
+    /// <param name="statistics">The library statistics for the ZMTBDD root.</param>
+    /// <returns>Application statistics with common diagram counts copied.</returns>
+    public static AppDiagramStatistics ForZmtbdd(DiagramStatistics statistics)
+    {
+        return ForMultiTerminal(statistics);
+    }
+
+    private static AppDiagramStatistics ForMultiTerminal(DiagramStatistics statistics)
+    {
+        ArgumentNullException.ThrowIfNull(statistics);
+
+        return new AppDiagramStatistics
+        {
+            ReachableNodeCount = statistics.ReachableNodeCount,
+            ReachableTerminalCount = statistics.ReachableTerminalCount,
+            TotalNodeCount = statistics.TotalNodeCount,
+            VariableCount = statistics.VariableCount,
+            BdtNodeCount = 0,
+            ReducedCount = 0,
+            SetCount = 0L,
+        };
+    }
+
     private static int CalculateBdtNodeCount(int variableCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(variableCount);

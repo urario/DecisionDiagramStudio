@@ -45,6 +45,11 @@ public sealed partial class StatisticsViewModel : ObservableObject
         BdtNodeCount = statistics.BdtNodeCount;
         ReducedCount = statistics.ReducedCount;
         SetCount = statistics.SetCount;
-        ReductionSummary = "BDT to BDD non-terminal nodes reduced: " + statistics.ReducedCount.ToString();
+        ReductionSummary = value?.Family switch
+        {
+            DiagramFamily.ZDD => "ZDD set count: " + statistics.SetCount.ToString(),
+            DiagramFamily.MTBDD or DiagramFamily.ZMTBDD => "Reachable terminal values: " + statistics.ReachableTerminalCount.ToString(),
+            _ => "BDT to BDD non-terminal nodes reduced: " + statistics.ReducedCount.ToString(),
+        };
     }
 }

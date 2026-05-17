@@ -30,6 +30,8 @@ public sealed class DiagramService : IDiagramService
     private Bdd? _currentBdd;
     private Zdd? _previousZdd;
     private Zdd? _currentZdd;
+    private Mtbdd? _currentMtbdd;
+    private Zmtbdd? _currentZmtbdd;
     private string[] _currentZddVariableNames = [];
 
     /// <summary>
@@ -83,11 +85,11 @@ public sealed class DiagramService : IDiagramService
         try
         {
             ValidateVariableNames(variableNames);
-            ValidateTruthTableShape(variableNames, intValueTable);
-
-            if (family != DiagramFamily.BDD)
+            ValidateIntegerValueTableShape(variableNames, intValueTable);
+            ValidateIntegerValueTableFamily(family);
+            if (family == DiagramFamily.BDD)
             {
-                throw new NotSupportedException("This truth-table overload currently supports only BDD builds. Use the set-family overload for ZDD.");
+                ValidateBddValueTableValues(intValueTable);
             }
 
             await _semaphore.WaitAsync(ct).ConfigureAwait(false);
@@ -98,7 +100,13 @@ public sealed class DiagramService : IDiagramService
                 await probe(ct).ConfigureAwait(false);
             }
 
-            var session = await Task.Run(() => BuildBddSession(variableNames, intValueTable), ct).ConfigureAwait(false);
+            var session = await Task.Run(() => family switch
+            {
+                DiagramFamily.BDD => BuildBddSession(variableNames, intValueTable),
+                DiagramFamily.MTBDD => BuildMtbddSession(variableNames, intValueTable),
+                DiagramFamily.ZMTBDD => BuildZmtbddSession(variableNames, intValueTable),
+                _ => throw new NotSupportedException("Use the set-family overload for ZDD builds."),
+            }, ct).ConfigureAwait(false);
             _logger.LogDebug(
                 "Diagram build completed. Family={Family} VariableCount={VariableCount} RowCount={RowCount} ReachableNodeCount={ReachableNodeCount} ElapsedMs={ElapsedMs}",
                 session.Family,
@@ -294,7 +302,8 @@ public sealed class DiagramService : IDiagramService
             }
 
             ValidateVariableNames(session.VariableNames);
-            ValidateTruthTableShape(session.VariableNames, session.IntValueTable);
+            ValidateIntegerValueTableShape(session.VariableNames, session.IntValueTable);
+            ValidateBddValueTableValues(session.IntValueTable!);
 
             variableCount = session.VariableNames.Length;
             if (variableCount > MaxBdtVariableCount)
@@ -351,7 +360,8 @@ public sealed class DiagramService : IDiagramService
     internal Bdd BuildBddFromTruthTable(int[] values, string[] variableNames)
     {
         ValidateVariableNames(variableNames);
-        ValidateTruthTableShape(variableNames, values);
+        ValidateIntegerValueTableShape(variableNames, values);
+        ValidateBddValueTableValues(values);
         EnsureBddVariableSchema(variableNames);
 
         var bddManager = _manager.Bdd;
@@ -404,7 +414,17 @@ public sealed class DiagramService : IDiagramService
         }
     }
 
-    private static void ValidateTruthTableShape(string[] variableNames, int[]? values)
+    private static void ValidateIntegerValueTableFamily(DiagramFamily family)
+    {
+        if (family is DiagramFamily.BDD or DiagramFamily.MTBDD or DiagramFamily.ZMTBDD)
+        {
+            return;
+        }
+
+        throw new NotSupportedException("Integer value tables are supported for BDD, MTBDD, and ZMTBDD. Use the set-family overload for ZDD.");
+    }
+
+    private static void ValidateIntegerValueTableShape(string[] variableNames, int[]? values)
     {
         ArgumentNullException.ThrowIfNull(variableNames);
         ArgumentNullException.ThrowIfNull(values);
@@ -421,7 +441,10 @@ public sealed class DiagramService : IDiagramService
                 "The value table length must be 2^variableCount.",
                 nameof(values));
         }
+    }
 
+    private static void ValidateBddValueTableValues(int[] values)
+    {
         for (var i = 0; i < values.Length; i++)
         {
             if (values[i] is not (0 or 1))
@@ -518,6 +541,74 @@ public sealed class DiagramService : IDiagramService
         return new DiagramSession
         {
             Family = DiagramFamily.BDD,
+            VariableNames = (string[])variableNames.Clone(),
+            VariableOrder = Enumerable.Range(0, variableNames.Length).ToArray(),
+            IntValueTable = (int[])intValueTable.Clone(),
+            SetInput = null,
+            DotText = dotText,
+            Statistics = statistics,
+            LastModified = DateTime.UtcNow,
+        };
+    }
+
+    private DiagramSession BuildMtbddSession(string[] variableNames, int[] intValueTable)
+    {
+        EnsureMtbddVariableSchema(variableNames);
+        var mtbddManager = _manager.Mtbdd;
+        for (var i = 0; i < variableNames.Length; i++)
+        {
+            _ = mtbddManager.GetOrAddVariable(variableNames[i]);
+        }
+
+        var mtbdd = mtbddManager.Create(intValueTable);
+        _currentMtbdd = mtbdd;
+
+        var statistics = AppDiagramStatistics.ForMtbdd(mtbddManager.GetStatistics(mtbdd));
+        var dotText = MtbddDiagnostics.ToDot(mtbddManager, mtbdd);
+        _logger.LogTrace(
+            "MTBDD session materialized. VariableCount={VariableCount} DotLength={DotLength} ReachableNodeCount={ReachableNodeCount} ReachableTerminalCount={ReachableTerminalCount}",
+            variableNames.Length,
+            dotText.Length,
+            statistics.ReachableNodeCount,
+            statistics.ReachableTerminalCount);
+
+        return new DiagramSession
+        {
+            Family = DiagramFamily.MTBDD,
+            VariableNames = (string[])variableNames.Clone(),
+            VariableOrder = Enumerable.Range(0, variableNames.Length).ToArray(),
+            IntValueTable = (int[])intValueTable.Clone(),
+            SetInput = null,
+            DotText = dotText,
+            Statistics = statistics,
+            LastModified = DateTime.UtcNow,
+        };
+    }
+
+    private DiagramSession BuildZmtbddSession(string[] variableNames, int[] intValueTable)
+    {
+        EnsureZmtbddVariableSchema(variableNames);
+        var zmtbddManager = _manager.Zmtbdd;
+        for (var i = 0; i < variableNames.Length; i++)
+        {
+            _ = zmtbddManager.GetOrAddVariable(variableNames[i]);
+        }
+
+        var zmtbdd = zmtbddManager.Create(intValueTable);
+        _currentZmtbdd = zmtbdd;
+
+        var statistics = AppDiagramStatistics.ForZmtbdd(zmtbddManager.GetStatistics(zmtbdd));
+        var dotText = ZmtbddDiagnostics.ToDot(zmtbddManager, zmtbdd);
+        _logger.LogTrace(
+            "ZMTBDD session materialized. VariableCount={VariableCount} DotLength={DotLength} ReachableNodeCount={ReachableNodeCount} ReachableTerminalCount={ReachableTerminalCount}",
+            variableNames.Length,
+            dotText.Length,
+            statistics.ReachableNodeCount,
+            statistics.ReachableTerminalCount);
+
+        return new DiagramSession
+        {
+            Family = DiagramFamily.ZMTBDD,
             VariableNames = (string[])variableNames.Clone(),
             VariableOrder = Enumerable.Range(0, variableNames.Length).ToArray(),
             IntValueTable = (int[])intValueTable.Clone(),
@@ -630,11 +721,7 @@ public sealed class DiagramService : IDiagramService
             }
         }
 
-        _manager = new DecisionDiagramManager(_options);
-        _currentBdd = null;
-        _previousZdd = null;
-        _currentZdd = null;
-        _currentZddVariableNames = [];
+        ResetManagerForVariableSchema();
         _logger.LogDebug("Decision diagram manager reset for a new BDD variable schema. VariableCount={VariableCount}", variableNames.Length);
     }
 
@@ -659,12 +746,69 @@ public sealed class DiagramService : IDiagramService
             }
         }
 
+        ResetManagerForVariableSchema();
+        _logger.LogDebug("Decision diagram manager reset for a new ZDD variable schema. VariableCount={VariableCount}", variableNames.Length);
+    }
+
+    private void EnsureMtbddVariableSchema(string[] variableNames)
+    {
+        var mtbddManager = _manager.Mtbdd;
+        if (mtbddManager.VariableCount == variableNames.Length)
+        {
+            var sameSchema = true;
+            for (var i = 0; i < variableNames.Length; i++)
+            {
+                if (!StringComparer.Ordinal.Equals(mtbddManager.GetVariableName(new VariableId(i)), variableNames[i]))
+                {
+                    sameSchema = false;
+                    break;
+                }
+            }
+
+            if (sameSchema)
+            {
+                return;
+            }
+        }
+
+        ResetManagerForVariableSchema();
+        _logger.LogDebug("Decision diagram manager reset for a new MTBDD variable schema. VariableCount={VariableCount}", variableNames.Length);
+    }
+
+    private void EnsureZmtbddVariableSchema(string[] variableNames)
+    {
+        var zmtbddManager = _manager.Zmtbdd;
+        if (zmtbddManager.VariableCount == variableNames.Length)
+        {
+            var sameSchema = true;
+            for (var i = 0; i < variableNames.Length; i++)
+            {
+                if (!StringComparer.Ordinal.Equals(zmtbddManager.GetVariableName(new VariableId(i)), variableNames[i]))
+                {
+                    sameSchema = false;
+                    break;
+                }
+            }
+
+            if (sameSchema)
+            {
+                return;
+            }
+        }
+
+        ResetManagerForVariableSchema();
+        _logger.LogDebug("Decision diagram manager reset for a new ZMTBDD variable schema. VariableCount={VariableCount}", variableNames.Length);
+    }
+
+    private void ResetManagerForVariableSchema()
+    {
         _manager = new DecisionDiagramManager(_options);
         _currentBdd = null;
         _previousZdd = null;
         _currentZdd = null;
+        _currentMtbdd = null;
+        _currentZmtbdd = null;
         _currentZddVariableNames = [];
-        _logger.LogDebug("Decision diagram manager reset for a new ZDD variable schema. VariableCount={VariableCount}", variableNames.Length);
     }
 
     private static IReadOnlyList<IReadOnlyList<string>> CloneSetInput(IReadOnlyList<IReadOnlyList<string>> setInput)

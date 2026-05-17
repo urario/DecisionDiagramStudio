@@ -61,6 +61,40 @@ public sealed class ExportServiceTests
     }
 
     /// <summary>
+    /// Verifies that MTBDD and ZMTBDD integer value tables can be copied as CSV.
+    /// </summary>
+    [TestMethod]
+    public async Task CopyTruthTableAsync_MultiTerminalSessions_ShouldCopyValueTables()
+    {
+        // Arrange
+        var clipboard = new RecordingClipboardService();
+        var service = new ExportService(new RecordingGraphvizService(), clipboard);
+
+        foreach (var family in new[] { DiagramFamily.MTBDD, DiagramFamily.ZMTBDD })
+        {
+            var session = new DiagramSession
+            {
+                Family = family,
+                VariableNames = ["a", "b"],
+                VariableOrder = [0, 1],
+                IntValueTable = [0, -1, 3, 5],
+                DotText = "digraph " + family.ToString() + " { root; }",
+            };
+
+            // Act
+            var csv = await service.CopyTruthTableAsync(session, ExportTableFormat.Csv, CancellationToken.None);
+
+            // Assert
+            Assert.AreEqual(
+                "a,b,Value\n0,0,0\n1,0,-1\n0,1,3\n1,1,5\n",
+                Normalize(csv),
+                family.ToString() + " CSV export should preserve integer values in LSB-first row order.");
+        }
+
+        Assert.AreEqual(2, clipboard.CopiedTexts.Count, "Each MT family export should write to the clipboard.");
+    }
+
+    /// <summary>
     /// Verifies that DOT and SVG file export write the expected content.
     /// </summary>
     [TestMethod]

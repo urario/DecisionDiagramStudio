@@ -42,8 +42,10 @@ public sealed class WorkbenchViewModelTests
         Assert.IsNotNull(viewModel.RebuildCommand, "A rebuild command should be exposed for the initial view load.");
         Assert.IsNotNull(viewModel.SelectPresetCommand, "Preset selection should be exposed as a command.");
         Assert.IsNotNull(viewModel.ChangeTruthTableCellCommand, "Truth-table changes should be exposed as a command.");
+        Assert.IsNotNull(viewModel.ChangeValueTableCellCommand, "MTBDD value-table changes should be exposed as a command.");
         Assert.IsTrue(viewModel.IsBddInputVisible, "BDD input should be visible for the default family.");
         Assert.IsFalse(viewModel.IsZddInputVisible, "ZDD input should be hidden for the default family.");
+        Assert.IsFalse(viewModel.IsMtbddInputVisible, "MTBDD input should be hidden for the default family.");
     }
 
     /// <summary>
@@ -295,6 +297,57 @@ public sealed class WorkbenchViewModelTests
         Assert.IsTrue(viewModel.IsZddInputVisible, "The ZDD input panel state should follow the restored family.");
     }
 
+    /// <summary>
+    /// Verifies that MTBDD integer value-table edits build through the integer-table service path.
+    /// </summary>
+    [TestMethod]
+    public async Task SelectedFamily_MtbddValueEdit_ShouldBuildMtbddSession()
+    {
+        // Arrange
+        var diagramService = new RecordingDiagramService();
+        var viewModel = new WorkbenchViewModel(
+            diagramService,
+            new StubPresetService(),
+            new CommandStack(),
+            TimeSpan.Zero);
+
+        // Act
+        viewModel.SelectedFamily = DiagramFamily.MTBDD;
+        viewModel.ChangeValueTableCellCommand.Execute(new TruthTableCellChange(0, 3));
+        await viewModel.PendingBuildTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        // Assert
+        Assert.IsTrue(viewModel.IsMtbddInputVisible, "MTBDD input should be visible for MTBDD.");
+        Assert.IsFalse(viewModel.IsBddInputVisible, "BDD input should be hidden for MTBDD.");
+        Assert.AreEqual(DiagramFamily.MTBDD, viewModel.SelectedFamily, "The workbench should remain on MTBDD.");
+        Assert.IsTrue(
+            diagramService.BuildRequests.Any(request => request.Family == DiagramFamily.MTBDD),
+            "MTBDD selection and value edits should build through the integer-table overload.");
+        CollectionAssert.AreEqual(new[] { 3, 1 }, viewModel.IntValueTable, "The integer value edit should be stored in the workbench table.");
+    }
+
+    /// <summary>
+    /// Verifies that ZMTBDD can be selected and rebuilt from the shared integer value table.
+    /// </summary>
+    [TestMethod]
+    public void SelectedFamily_Zmtbdd_ShouldBuildZmtbddSession()
+    {
+        // Arrange
+        var diagramService = new RecordingDiagramService();
+        var viewModel = new WorkbenchViewModel(
+            diagramService,
+            new StubPresetService(),
+            new CommandStack());
+
+        // Act
+        viewModel.SelectedFamily = DiagramFamily.ZMTBDD;
+
+        // Assert
+        Assert.IsTrue(viewModel.IsMtbddInputVisible, "ZMTBDD input should use the MTBDD value-table panel.");
+        Assert.AreEqual(DiagramFamily.ZMTBDD, viewModel.CurrentSession!.Family, "Selecting ZMTBDD should apply a ZMTBDD session.");
+        Assert.AreEqual(DiagramFamily.ZMTBDD, diagramService.BuildRequests[^1].Family, "ZMTBDD should build through the integer-table overload.");
+    }
+
     private sealed class RecordingDiagramService : IDiagramService
     {
         public List<(string[] Variables, int[] Values, DiagramFamily Family, CancellationToken Token)> BuildRequests { get; } = [];
@@ -310,7 +363,7 @@ public sealed class WorkbenchViewModelTests
                 VariableNames = (string[])variableNames.Clone(),
                 VariableOrder = Enumerable.Range(0, variableNames.Length).ToArray(),
                 IntValueTable = (int[])intValueTable.Clone(),
-                DotText = "digraph BDD { root; }",
+                DotText = "digraph " + family.ToString() + " { root; }",
                 Statistics = new AppDiagramStatistics
                 {
                     ReachableNodeCount = 1,

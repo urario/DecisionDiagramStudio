@@ -10,7 +10,7 @@ namespace DecisionDiagramStudio.ViewModels;
 /// </summary>
 public sealed partial class ExplanationViewModel : ObservableObject
 {
-    private static readonly Regex NodeIdRegex = new("^n\\d+$", RegexOptions.CultureInvariant);
+    private static readonly Regex NodeIdRegex = new("^[nt]\\d+$", RegexOptions.CultureInvariant);
     private static readonly Regex VariableNameRegex = new("^[a-zA-Z_][a-zA-Z0-9_]*$", RegexOptions.CultureInvariant);
 
     [ObservableProperty]
@@ -26,6 +26,18 @@ public sealed partial class ExplanationViewModel : ObservableObject
     /// <param name="session">The session that owns the selected node.</param>
     public void SelectNode(string nodeId, DiagramSession session)
     {
+        SelectNode(nodeId, string.Empty, string.Empty, session);
+    }
+
+    /// <summary>
+    /// Selects a diagram node and updates the explanation text with node metadata.
+    /// </summary>
+    /// <param name="nodeId">The selected node id.</param>
+    /// <param name="variableName">The selected node variable name when available.</param>
+    /// <param name="nodeType">The selected node kind.</param>
+    /// <param name="session">The session that owns the selected node.</param>
+    public void SelectNode(string nodeId, string variableName, string nodeType, DiagramSession session)
+    {
         if (string.IsNullOrWhiteSpace(nodeId))
         {
             throw new ArgumentException("A node id is required.", nameof(nodeId));
@@ -34,9 +46,7 @@ public sealed partial class ExplanationViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(session);
 
         SelectedNodeId = nodeId;
-        ExplanationText = "Node " + nodeId + " belongs to a " + session.Family
-            + " session with " + session.VariableNames.Length.ToString()
-            + " variable(s).";
+        ExplanationText = BuildExplanationText(nodeId, variableName, nodeType, session);
     }
 
     /// <summary>
@@ -50,18 +60,41 @@ public sealed partial class ExplanationViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(json);
         ArgumentNullException.ThrowIfNull(session);
 
-        if (!TryParseNodeClickMessage(json, out var nodeId))
+        if (!TryParseNodeClickMessage(json, out var message))
         {
             return false;
         }
 
-        SelectNode(nodeId, session);
+        SelectNode(message.NodeId, message.VariableName, message.NodeType, session);
         return true;
     }
 
-    private static bool TryParseNodeClickMessage(string json, out string nodeId)
+    private static string BuildExplanationText(string nodeId, string variableName, string nodeType, DiagramSession session)
     {
-        nodeId = string.Empty;
+        var kind = string.IsNullOrWhiteSpace(nodeType) ? "diagram" : nodeType;
+        var variableText = string.IsNullOrWhiteSpace(variableName) || variableName == "_terminal"
+            ? "output terminal"
+            : "variable " + variableName;
+        var values = session.IntValueTable is null
+            ? "set-family membership"
+            : "values {" + string.Join(", ", session.IntValueTable.Distinct().Order().Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture))) + "}";
+        var familyText = session.Family switch
+        {
+            DiagramFamily.BDD => "BDD nodes choose low edge for 0 and high edge for 1; terminals are Boolean results.",
+            DiagramFamily.ZDD => "ZDD nodes use zero-suppressed set-family semantics; a missing high branch removes sets containing the variable.",
+            DiagramFamily.MTBDD => "MTBDD terminals are integer results, so multiple output values can share the same variable-order diagram.",
+            DiagramFamily.ZMTBDD => "ZMTBDD terminals are integer results with zero-suppressed branches for sparse value tables.",
+            _ => "Decision diagram nodes follow the selected family semantics.",
+        };
+
+        return "Node " + nodeId + " is a " + kind + " node for " + variableText + " in a "
+            + session.Family + " session. Variables: " + string.Join(", ", session.VariableNames)
+            + ". Values: " + values + ". " + familyText;
+    }
+
+    private static bool TryParseNodeClickMessage(string json, out NodeClickMessage message)
+    {
+        message = default;
 
         try
         {
@@ -83,7 +116,7 @@ public sealed partial class ExplanationViewModel : ObservableObject
                 return false;
             }
 
-            nodeId = parsedNodeId;
+            message = new NodeClickMessage(parsedNodeId, variableName, nodeType);
             return true;
         }
         catch (JsonException)
@@ -99,4 +132,6 @@ public sealed partial class ExplanationViewModel : ObservableObject
             && property.ValueKind == JsonValueKind.String
             && !string.IsNullOrWhiteSpace(value = property.GetString() ?? string.Empty);
     }
+
+    private readonly record struct NodeClickMessage(string NodeId, string VariableName, string NodeType);
 }

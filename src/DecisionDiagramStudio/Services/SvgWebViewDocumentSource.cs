@@ -86,9 +86,16 @@ public sealed class SvgWebViewDocumentSource : ISvgWebViewDocumentSource
         render();
     }
 
-    function normalizeNodeId(value, fallbackIndex) {
-        const match = String(value || '').match(/\d+/);
-        return match ? `n${match[0]}` : `n${fallbackIndex}`;
+    function normalizeNodeId(value, fallbackIndex, nodeType) {
+        const candidate = String(value || '').trim();
+        const explicit = candidate.match(/^[nt]\d+$/);
+        if (explicit) {
+            return explicit[0];
+        }
+
+        const match = candidate.match(/\d+/);
+        const prefix = nodeType === 'terminal' ? 't' : 'n';
+        return match ? `${prefix}${match[0]}` : `${prefix}${fallbackIndex}`;
     }
 
     function normalizeVariableName(value) {
@@ -97,8 +104,9 @@ public sealed class SvgWebViewDocumentSource : ISvgWebViewDocumentSource
     }
 
     function inferNodeType(group) {
+        const title = group.querySelector('title')?.textContent || '';
         const text = group.textContent?.trim() || '';
-        return text === '0' || text === '1' || text === 'False' || text === 'True' ? 'terminal' : 'internal';
+        return /^t\d+$/.test(title) || text === '0' || text === '1' || /^-?\d+$/.test(text) || text === 'False' || text === 'True' ? 'terminal' : 'internal';
     }
 
     function wireNodeClickMessages() {
@@ -107,8 +115,8 @@ public sealed class SvgWebViewDocumentSource : ISvgWebViewDocumentSource
             node.addEventListener('click', event => {
                 event.stopPropagation();
                 const title = node.querySelector('title')?.textContent || '';
-                const nodeId = normalizeNodeId(node.dataset.nodeId || node.id || title, index + 1);
                 const nodeType = node.dataset.nodeType === 'terminal' ? 'terminal' : inferNodeType(node);
+                const nodeId = normalizeNodeId(node.dataset.nodeId || node.id || title, index + 1, nodeType);
                 const variableName = normalizeVariableName(node.dataset.variable || title);
                 window.chrome?.webview?.postMessage({
                     type: 'nodeClick',

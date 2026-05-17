@@ -132,7 +132,6 @@
                                         GroupName="DiagramFamily"
                                         Checked="FamilyRadioButton_Checked"
                                         IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=MTBDD}"
-                                        IsEnabled="False"
                                         Style="{StaticResource DiagramFamilyRadioButtonStyle}"
                                         Tag="MTBDD">
                                         <RadioButton.Resources>
@@ -154,7 +153,6 @@
                                         GroupName="DiagramFamily"
                                         Checked="FamilyRadioButton_Checked"
                                         IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=ZMTBDD}"
-                                        IsEnabled="False"
                                         Style="{StaticResource DiagramFamilyRadioButtonStyle}"
                                         Tag="ZMTBDD">
                                         <RadioButton.Resources>
@@ -410,6 +408,127 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+
+                    <Border
+                        x:Name="MtbddValueTablePanel"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Visibility="Collapsed">
+                        <Grid ColumnDefinitions="4,*">
+                            <Border
+                                Background="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                CornerRadius="6,0,0,6"/>
+                            <StackPanel
+                                Grid.Column="1"
+                                Padding="14"
+                                Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Foreground="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                        Text="{x:Bind ViewModel.ValueTableTitle, Mode=OneWay}"/>
+                                    <Border
+                                        Grid.Column="1"
+                                        Padding="8,2"
+                                        Background="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}, ConverterParameter=Soft}"
+                                        CornerRadius="4">
+                                        <TextBlock
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyBrushConverter}}"
+                                            Text="{x:Bind ViewModel.SelectedFamilyLabel, Mode=OneWay}"/>
+                                    </Border>
+                                </Grid>
+                                <ScrollViewer
+                                    MaxHeight="560"
+                                    HorizontalScrollBarVisibility="Auto"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <Grid
+                                            MinHeight="36"
+                                            ColumnDefinitions="Auto,92">
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.VariableNames, Mode=OneWay}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border
+                                                            Width="52"
+                                                            MinHeight="36"
+                                                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                            BorderThickness="0,0,1,1">
+                                                            <TextBlock
+                                                                FontWeight="SemiBold"
+                                                                Style="{StaticResource TruthTableVariableCellTextStyle}"
+                                                                Text="{Binding}"
+                                                                ToolTipService.ToolTip="{Binding}"/>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Border
+                                                Grid.Column="1"
+                                                Width="92"
+                                                MinHeight="36"
+                                                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="0,0,0,1">
+                                                <TextBlock
+                                                    FontWeight="SemiBold"
+                                                    Style="{StaticResource TruthTableVariableCellTextStyle}"
+                                                    Text="Value"/>
+                                            </Border>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.TruthTableRows, Mode=OneWay}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:TruthTableRowViewModel">
+                                                    <Grid
+                                                        MinHeight="42"
+                                                        ColumnDefinitions="Auto,92">
+                                                        <ItemsControl ItemsSource="{x:Bind VariableValues}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <StackPanel Orientation="Horizontal"/>
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border
+                                                                        Width="52"
+                                                                        MinHeight="42"
+                                                                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                                                        BorderThickness="0,0,1,1">
+                                                                        <TextBlock
+                                                                            Style="{StaticResource TruthTableVariableCellTextStyle}"
+                                                                            Text="{Binding}"/>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBox
+                                                            Grid.Column="1"
+                                                            Width="92"
+                                                            Margin="0,4,0,4"
+                                                            HorizontalAlignment="Stretch"
+                                                            LostFocus="ValueTableTextBox_LostFocus"
+                                                            Text="{x:Bind ValueText}"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                                <Button
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.RebuildCommand}"
+                                    Content="{x:Bind ViewModel.ValueTableBuildButtonLabel, Mode=OneWay}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 
@@ -425,12 +544,26 @@
                             Text="Diagram"/>
                         <TextBlock
                             Opacity="0.72"
-                            Text="Reduced BDD and unreduced BDT preview"/>
-                        <TextBlock
-                            Margin="0,4,0,0"
-                            Opacity="0.72"
-                            Text="{x:Bind ExplanationViewModel.ExplanationText, Mode=OneWay}"
-                            TextWrapping="WrapWholeWords"/>
+                            Text="Decision diagram preview"/>
+                        <Border
+                            x:Name="ExplanationPanel"
+                            MaxWidth="760"
+                            Margin="0,8,0,0"
+                            Padding="10"
+                            BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                            <StackPanel Spacing="4">
+                                <TextBlock
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Text="{x:Bind ExplanationViewModel.SelectedNodeId, Mode=OneWay}"/>
+                                <TextBlock
+                                    Opacity="0.78"
+                                    Text="{x:Bind ExplanationViewModel.ExplanationText, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                     <StackPanel
                         Grid.Column="1"

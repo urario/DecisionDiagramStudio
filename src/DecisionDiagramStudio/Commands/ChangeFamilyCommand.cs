@@ -69,11 +69,19 @@ public sealed class ChangeFamilyCommand : IUndoableCommand
                 .BuildAsync((string[])_variableNames.Clone(), (int[])_intValueTable.Clone(), DiagramFamily.BDD, _cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
+            DiagramFamily.MTBDD => _diagramService
+                .BuildAsync((string[])_variableNames.Clone(), (int[])_intValueTable.Clone(), DiagramFamily.MTBDD, _cancellationToken)
+                .GetAwaiter()
+                .GetResult(),
+            DiagramFamily.ZMTBDD => _diagramService
+                .BuildAsync((string[])_variableNames.Clone(), (int[])_intValueTable.Clone(), DiagramFamily.ZMTBDD, _cancellationToken)
+                .GetAwaiter()
+                .GetResult(),
             DiagramFamily.ZDD => _diagramService
                 .BuildAsync((string[])_variableNames.Clone(), CloneSetInput(_setInput), DiagramFamily.ZDD, _cancellationToken)
                 .GetAwaiter()
                 .GetResult(),
-            _ => throw new NotSupportedException("Only BDD and ZDD are selectable in v0.2."),
+            _ => throw new ArgumentOutOfRangeException(nameof(family), family, "Unsupported diagram family."),
         };
 
         _applySession?.Invoke(CurrentSession);

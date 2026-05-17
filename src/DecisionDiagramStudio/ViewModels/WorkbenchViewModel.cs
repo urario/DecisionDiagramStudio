@@ -142,6 +142,11 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
             ArgumentNullException.ThrowIfNull(change);
             ChangeTruthTableCell(change.Index, change.Value);
         });
+        ChangeValueTableCellCommand = new RelayCommand<TruthTableCellChange>(change =>
+        {
+            ArgumentNullException.ThrowIfNull(change);
+            ChangeValueTableCell(change.Index, change.Value);
+        });
     }
 
     /// <summary>
@@ -168,6 +173,21 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     /// Gets a value indicating whether ZDD-specific input controls should be visible.
     /// </summary>
     public bool IsZddInputVisible => SelectedFamily == DiagramFamily.ZDD;
+
+    /// <summary>
+    /// Gets a value indicating whether MTBDD/ZMTBDD integer value-table controls should be visible.
+    /// </summary>
+    public bool IsMtbddInputVisible => SelectedFamily is DiagramFamily.MTBDD or DiagramFamily.ZMTBDD;
+
+    /// <summary>
+    /// Gets the integer value-table panel title for the selected MT family.
+    /// </summary>
+    public string ValueTableTitle => SelectedFamily == DiagramFamily.ZMTBDD ? "ZMTBDD value table" : "MTBDD value table";
+
+    /// <summary>
+    /// Gets the integer value-table build button label.
+    /// </summary>
+    public string ValueTableBuildButtonLabel => "Build " + SelectedFamily.ToString();
 
     /// <summary>
     /// Gets a value indicating whether the command stack can undo.
@@ -220,6 +240,11 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     public IRelayCommand<TruthTableCellChange> ChangeTruthTableCellCommand { get; }
 
     /// <summary>
+    /// Gets the command that updates one integer value-table cell.
+    /// </summary>
+    public IRelayCommand<TruthTableCellChange> ChangeValueTableCellCommand { get; }
+
+    /// <summary>
     /// Applies one truth-table cell edit and schedules a debounced rebuild.
     /// </summary>
     /// <param name="index">The zero-based truth-table row index.</param>
@@ -227,6 +252,11 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     public void ChangeTruthTableCell(int index, int value)
     {
         ThrowIfDisposed();
+        if (SelectedFamily != DiagramFamily.BDD)
+        {
+            throw new InvalidOperationException("BDD truth-table cells can only be edited while BDD is selected.");
+        }
+
         ValidateTruthTableCell(index, value);
 
         var nextValues = (int[])IntValueTable.Clone();
@@ -240,6 +270,42 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         IntValueTable = nextValues;
         _logger.LogDebug(
             "Truth-table edit scheduled a debounced build. RowIndex={RowIndex} RowCount={RowCount}",
+            index,
+            nextValues.Length);
+        ScheduleDebouncedBuild((int[])_lastCommittedValues.Clone(), nextValues);
+    }
+
+    /// <summary>
+    /// Applies one integer value-table cell edit and schedules a debounced rebuild.
+    /// </summary>
+    /// <param name="index">The zero-based value-table row index.</param>
+    /// <param name="value">The new integer value.</param>
+    public void ChangeValueTableCell(int index, int value)
+    {
+        ThrowIfDisposed();
+        if (SelectedFamily == DiagramFamily.ZDD)
+        {
+            throw new InvalidOperationException("ZDD sessions use set-family input instead of integer value tables.");
+        }
+
+        ValidateValueTableCell(index);
+        if (SelectedFamily == DiagramFamily.BDD)
+        {
+            ValidateTruthTableCell(index, value);
+        }
+
+        var nextValues = (int[])IntValueTable.Clone();
+        if (nextValues[index] == value)
+        {
+            _logger.LogTrace("Value-table edit ignored because the value was unchanged. RowIndex={RowIndex}", index);
+            return;
+        }
+
+        nextValues[index] = value;
+        IntValueTable = nextValues;
+        _logger.LogDebug(
+            "Value-table edit scheduled a debounced build. Family={Family} RowIndex={RowIndex} RowCount={RowCount}",
+            SelectedFamily,
             index,
             nextValues.Length);
         ScheduleDebouncedBuild((int[])_lastCommittedValues.Clone(), nextValues);
@@ -473,6 +539,9 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedFamilyLabel));
         OnPropertyChanged(nameof(IsBddInputVisible));
         OnPropertyChanged(nameof(IsZddInputVisible));
+        OnPropertyChanged(nameof(IsMtbddInputVisible));
+        OnPropertyChanged(nameof(ValueTableTitle));
+        OnPropertyChanged(nameof(ValueTableBuildButtonLabel));
         _logger.LogInformation("Diagram family changed. Family={Family}", value);
 
         if (!_suppressFamilyChangeCommand && _familyBeforeChange != value)
@@ -541,6 +610,7 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         ThrowIfDisposed();
         CancelPendingBuild();
 
+        var beforeVariableNames = (string[])VariableNames.Clone();
         var parsedVariables = ParseVariableNames(VariableNamesText);
         var nextValues = ResizeTruthTable(IntValueTable, parsedVariables.Length);
         _logger.LogInformation(
@@ -554,6 +624,19 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         VariableNames = parsedVariables;
         IntValueTable = nextValues;
+        if (SelectedFamily == DiagramFamily.ZDD)
+        {
+            var setInput = ParseSetInputText(SetInputText);
+            var afterVariableNames = MergeVariableNames(parsedVariables, setInput);
+            PushSetInputCommand(
+                beforeVariableNames,
+                _lastCommittedSetInput,
+                afterVariableNames,
+                setInput,
+                cancellation.Token);
+            return;
+        }
+
         PushTruthTableCommand(beforeValues, nextValues, cancellation.Token);
     }
 
@@ -616,16 +699,19 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     private void ChangeFamily(DiagramFamily beforeFamily, DiagramFamily afterFamily)
     {
-        if (afterFamily is not (DiagramFamily.BDD or DiagramFamily.ZDD))
-        {
-            SetSelectedFamilySilently(beforeFamily);
-            throw new NotSupportedException("Only BDD and ZDD are selectable in v0.2.");
-        }
-
         CancelPendingBuild();
         var cancellation = ReplaceBuildCancellation();
-        var setInput = ParseSetInputText(SetInputText);
+        var needsSetInput = beforeFamily == DiagramFamily.ZDD || afterFamily == DiagramFamily.ZDD;
+        var setInput = needsSetInput ? ParseSetInputText(SetInputText) : _lastCommittedSetInput;
         var variableNames = afterFamily == DiagramFamily.ZDD ? MergeVariableNames(VariableNames, setInput) : VariableNames;
+        var intValueTable = IntValueTable.Length == 1 << variableNames.Length
+            ? IntValueTable
+            : ResizeTruthTable(IntValueTable, variableNames.Length);
+        if (!ReferenceEquals(intValueTable, IntValueTable))
+        {
+            IntValueTable = intValueTable;
+        }
+
         IsBuilding = true;
         ErrorMessage = string.Empty;
         try
@@ -635,7 +721,7 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
                 beforeFamily,
                 afterFamily,
                 variableNames,
-                IntValueTable,
+                intValueTable,
                 setInput,
                 ApplySession,
                 cancellation.Token);
@@ -751,6 +837,15 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
             _lastCommittedValues = (int[])session.IntValueTable.Clone();
             IntValueTable = (int[])session.IntValueTable.Clone();
         }
+        else
+        {
+            if (session.VariableNames.Length <= 10 && IntValueTable.Length != 1 << session.VariableNames.Length)
+            {
+                var resized = ResizeTruthTable(IntValueTable, session.VariableNames.Length);
+                _lastCommittedValues = (int[])resized.Clone();
+                IntValueTable = resized;
+            }
+        }
 
         if (session.SetInput is not null)
         {
@@ -805,14 +900,19 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     private void ValidateTruthTableCell(int index, int value)
     {
-        if (index < 0 || index >= IntValueTable.Length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index), "The truth-table index is outside the current table.");
-        }
+        ValidateValueTableCell(index);
 
         if (value is not (0 or 1))
         {
             throw new ArgumentOutOfRangeException(nameof(value), "BDD truth-table values must be 0 or 1.");
+        }
+    }
+
+    private void ValidateValueTableCell(int index)
+    {
+        if (index < 0 || index >= IntValueTable.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index), "The value-table index is outside the current table.");
         }
     }
 

@@ -108,4 +108,59 @@ public sealed class ExplanationViewModelTests
             Assert.AreEqual(originalText, viewModel.ExplanationText, "Invalid messages must not change the explanation text.");
         }
     }
+
+    /// <summary>
+    /// Verifies family-specific explanation text for all v0.3 diagram families.
+    /// </summary>
+    [TestMethod]
+    public void SelectNode_AllFamilies_ShouldMentionFamilyVariablesAndValues()
+    {
+        // Arrange
+        var viewModel = new ExplanationViewModel();
+        var sessions = new[]
+        {
+            new DiagramSession { Family = DiagramFamily.BDD, VariableNames = ["a"], IntValueTable = [0, 1] },
+            new DiagramSession { Family = DiagramFamily.ZDD, VariableNames = ["a"], SetInput = [new[] { "a" }] },
+            new DiagramSession { Family = DiagramFamily.MTBDD, VariableNames = ["a", "b"], IntValueTable = [0, 2, 2, 5] },
+            new DiagramSession { Family = DiagramFamily.ZMTBDD, VariableNames = ["a", "b"], IntValueTable = [0, 0, 0, 7] },
+        };
+
+        foreach (var session in sessions)
+        {
+            // Act
+            viewModel.SelectNode("n1", "a", "internal", session);
+
+            // Assert
+            StringAssert.Contains(viewModel.ExplanationText, session.Family.ToString());
+            StringAssert.Contains(viewModel.ExplanationText, "Variables: a");
+            StringAssert.Contains(viewModel.ExplanationText, "Values:");
+            StringAssert.Contains(viewModel.ExplanationText, "internal");
+        }
+    }
+
+    /// <summary>
+    /// Verifies terminal node-click messages with MTBDD numeric output metadata are accepted.
+    /// </summary>
+    [TestMethod]
+    public void TrySelectNodeFromWebMessage_TerminalNode_ShouldUpdateExplanation()
+    {
+        // Arrange
+        var viewModel = new ExplanationViewModel();
+        var session = new DiagramSession
+        {
+            Family = DiagramFamily.MTBDD,
+            VariableNames = ["a"],
+            IntValueTable = [0, 42],
+        };
+        const string Json = """{"type":"nodeClick","nodeId":"t1","variableName":"_terminal","nodeType":"terminal"}""";
+
+        // Act
+        var accepted = viewModel.TrySelectNodeFromWebMessage(Json, session);
+
+        // Assert
+        Assert.IsTrue(accepted, "Terminal node-click messages should be accepted.");
+        Assert.AreEqual("t1", viewModel.SelectedNodeId, "Terminal node ids should be preserved.");
+        StringAssert.Contains(viewModel.ExplanationText, "terminal");
+        StringAssert.Contains(viewModel.ExplanationText, "42");
+    }
 }

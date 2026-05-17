@@ -8,6 +8,8 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Foundation;
+using Windows.Storage.Pickers;
+using WinRT.Interop;
 
 namespace DecisionDiagramStudio.Views;
 
@@ -19,6 +21,7 @@ public sealed partial class WorkbenchPage : Page
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly SemaphoreSlim _documentNavigationGate = new(1, 1);
     private readonly ISvgWebViewDocumentSource _svgDocumentSource;
+    private readonly IExportService _exportService;
     private readonly ILogger<WorkbenchPage> _logger;
     private CancellationTokenSource? _renderCancellation;
     private Task? _webViewInitializationTask;
@@ -37,6 +40,7 @@ public sealed partial class WorkbenchPage : Page
         StatisticsViewModel = App.Services.GetRequiredService<StatisticsViewModel>();
         ExplanationViewModel = App.Services.GetRequiredService<ExplanationViewModel>();
         _svgDocumentSource = App.Services.GetRequiredService<ISvgWebViewDocumentSource>();
+        _exportService = App.Services.GetRequiredService<IExportService>();
         _logger = App.Services.GetRequiredService<ILogger<WorkbenchPage>>();
 
         InitializeComponent();
@@ -74,6 +78,7 @@ public sealed partial class WorkbenchPage : Page
 
         UpdateReductionButton();
         UpdateRenderingState();
+        UpdateFamilyInputVisibility();
         UpdateStatus();
         UpdateErrorInfoBar();
         await UpdateDiagramDocumentSafelyAsync(DiagramViewModel.SvgContent);
@@ -148,6 +153,95 @@ public sealed partial class WorkbenchPage : Page
                 "Truth-table toggle handling failed. RowIndex={RowIndex} ExceptionType={ExceptionType}",
                 row.Index,
                 ex.GetType().Name);
+            ShowError(ex.Message);
+        }
+    }
+
+    private void FamilyRadioButton_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton { Tag: string familyName }
+            || !Enum.TryParse<DiagramFamily>(familyName, out var family)
+            || ViewModel.SelectedFamily == family)
+        {
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Family radio button checked. Family={Family}", family);
+            ViewModel.SelectedFamily = family;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(
+                "Family radio button handling failed. Family={Family} ExceptionType={ExceptionType}",
+                family,
+                ex.GetType().Name);
+            ShowError(ex.Message);
+        }
+    }
+
+    private async void CopyTruthTableCsvButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.CurrentSession is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _exportService.CopyTruthTableAsync(ViewModel.CurrentSession, ExportTableFormat.Csv, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError("Truth-table copy failed. ExceptionType={ExceptionType}", ex.GetType().Name);
+            ShowError(ex.Message);
+        }
+    }
+
+    private async void SaveSvgButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SaveSessionFileAsync("SVG diagram", ".svg", "diagram.svg", path =>
+            _exportService.SaveSvgAsync(ViewModel.CurrentSession!, path, CancellationToken.None));
+    }
+
+    private async void SaveDotButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SaveSessionFileAsync("DOT graph", ".dot", "diagram.dot", path =>
+            _exportService.SaveDotAsync(ViewModel.CurrentSession!, path, CancellationToken.None));
+    }
+
+    private async Task SaveSessionFileAsync(string label, string extension, string suggestedFileName, Func<string, Task> saveAsync)
+    {
+        if (ViewModel.CurrentSession is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var picker = new FileSavePicker
+            {
+                SuggestedFileName = suggestedFileName,
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+            };
+            picker.FileTypeChoices.Add(label, [extension]);
+            if (App.MainAppWindow is not null)
+            {
+                InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainAppWindow));
+            }
+
+            var file = await picker.PickSaveFileAsync();
+            if (file is null)
+            {
+                return;
+            }
+
+            await saveAsync(file.Path);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError("File export failed. Extension={Extension} ExceptionType={ExceptionType}", extension, ex.GetType().Name);
             ShowError(ex.Message);
         }
     }
@@ -227,6 +321,11 @@ public sealed partial class WorkbenchPage : Page
         if (e.PropertyName == nameof(WorkbenchViewModel.ErrorMessage))
         {
             UpdateErrorInfoBar();
+        }
+
+        if (e.PropertyName is nameof(WorkbenchViewModel.SelectedFamily) or nameof(WorkbenchViewModel.IsBddInputVisible) or nameof(WorkbenchViewModel.IsZddInputVisible))
+        {
+            UpdateFamilyInputVisibility();
         }
     }
 
@@ -536,7 +635,7 @@ public sealed partial class WorkbenchPage : Page
     private void UpdateReductionButton()
     {
         ReductionToggleButton.Visibility = DiagramViewModel.IsBdtButtonVisible ? Visibility.Visible : Visibility.Collapsed;
-        ReductionToggleButton.Content = DiagramViewModel.IsReduced ? "削減前 (BDT)" : "削減後 (BDD)";
+        ReductionToggleButton.Content = DiagramViewModel.IsReduced ? "Show BDT" : "Show BDD";
     }
 
     private void UpdateRenderingState()
@@ -544,11 +643,28 @@ public sealed partial class WorkbenchPage : Page
         RenderingRing.Visibility = DiagramViewModel.IsRendering ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void UpdateFamilyInputVisibility()
+    {
+        BddTruthTablePanel.Visibility = ViewModel.IsBddInputVisible ? Visibility.Visible : Visibility.Collapsed;
+        ZddSetInputPanel.Visibility = ViewModel.IsZddInputVisible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void UpdateStatus()
     {
         if (StatisticsViewModel.Session is null)
         {
             StatusInfoBar.Message = "No diagram has been built yet.";
+            return;
+        }
+
+        if (StatisticsViewModel.Session.Family == DiagramFamily.ZDD)
+        {
+            StatusInfoBar.Message =
+                "Variables: " + StatisticsViewModel.VariableCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " | ZDD nodes: " + StatisticsViewModel.ReachableNodeCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " | Terminals: " + StatisticsViewModel.ReachableTerminalCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " | Total nodes: " + StatisticsViewModel.TotalNodeCount.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                " | Sets: " + StatisticsViewModel.SetCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
             return;
         }
 

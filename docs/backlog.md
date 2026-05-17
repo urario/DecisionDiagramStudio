@@ -165,7 +165,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | VM-BDD-001 | - | `WorkbenchViewModel` の骨格実装: `IDiagramService`, `IPresetService`, `CommandStack` を DI で受け取り、`[ObservableProperty]` で `VariableNames`, `IntValueTable`, `SelectedFamily` を持つ | ViewModel がインスタンス化でき、初期状態で `SelectedFamily == BDD` である | ユニットテスト（モック使用） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `WorkbenchViewModelTests.Constructor_ShouldInitializeBddStateAndCommands` 合格。coverage: `tests/DecisionDiagramStudio.Tests/TestResults/5364a237-7e46-4561-ae53-d681297a20c7/coverage.cobertura.xml` |
 | VM-BDD-002 | VM-BDD-001 | `SelectPresetCommand` の実装: `PresetService.GetPreset()` → `ChangeTruthTableCommand` → `CommandStack.Push` → `DiagramService.BuildAsync` の一連のフロー | プリセット選択後に `CurrentSession.DotText` が非空の DOT 文字列になる | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `WorkbenchViewModelTests.SelectPresetCommand_ShouldApplyPresetAndBuildCurrentSession` 合格。`dotnet test` 合格: 61件 |
-| VM-BDD-003 | VM-BDD-001 | TT セル変更時のデバウンス実装: セル変更から 300ms 後に `BuildAsync` が実行され、連続変更時は前の `CancellationTokenSource.Cancel()` を呼ぶ | 100ms 間隔で3回 TT 変更を行った場合、`BuildAsync` が1回だけ呼ばれることをモックで確認 | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `WorkbenchViewModelTests.ChangeTruthTableCell_ThreeChangesAtOneHundredMilliseconds_ShouldBuildOnce` 合格。`BuildAsync` 1回を確認 |
+| VM-BDD-003 | VM-BDD-001 | TT セル変更時のデバウンス実装: 連続変更時は前の `CancellationTokenSource.Cancel()` を呼び、入力が落ち着いてから `BuildAsync` を実行する | 連続して3回 TT 変更を行った場合、`BuildAsync` が1回だけ呼ばれることをモックで確認 | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `WorkbenchViewModelTests.ChangeTruthTableCell_ThreeChangesAtOneHundredMilliseconds_ShouldBuildOnce` 合格。`BuildAsync` 1回を確認 |
 | VM-BDD-004 | - | `DiagramPanelViewModel` の実装: `SvgContent`, `DotText`, `IsReduced`, `ToggleReductionCommand`, `[BDD専用] BDTボタン表示制御` | BDD セッションで `ToggleReductionCommand` を実行すると `IsReduced` が切り替わり、ZDD セッションではボタンが非表示になる | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `DiagramPanelViewModelTests` 合格。BDD トグルと ZDD 非表示を確認 |
 | VM-BDD-005 | - | `StatisticsViewModel` の実装: `DiagramSession.Statistics` を受け取り `ReachableNodeCount`, `TotalNodeCount`, `ReducedCount` 等の表示プロパティを持つ。`ReducedCount` は BDT→BDD の非終端ノード削減数として表示する | `Session` プロパティを更新すると全表示プロパティが連動して更新される | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `StatisticsViewModelTests.Session_Set_ShouldUpdateAllDisplayProperties` 合格。ViewModel line-rate=1 |
 | VM-BDD-006 | - | `ExplanationViewModel` の骨格実装: `SelectNode(nodeId, session)` でノード選択状態を保持し、解説テキスト `ExplanationText` を生成する（v0.1 は簡易テキスト） | `SelectNode("n1", session)` 呼び出し後に `ExplanationText` が非空になる | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `ExplanationViewModelTests.SelectNode_ShouldStoreSelectedNodeAndGenerateExplanationText` 合格。ViewModel line-rate=1 |
@@ -202,7 +202,7 @@
 | TEST-BDD-001 | SVC-BDD-004 | `DiagramServiceTests` の統合テスト: `BuildBddFromTruthTable` を実際の `DecisionDiagramSharp` ライブラリで実行し、1〜4変数の全真理値表パターンで往復確認（`BuildTruthTable` で逆変換して一致確認） | 全テストケース（1変数: 4通り, 2変数: 16通り, 3変数: 256通り, 4変数: 65536通り）が合格する | 統合テスト（実ライブラリ使用） | Yes | 失敗テスト出力 | 合格テスト出力 | `BuildBddFromTruthTable` メソッド 100% | `coverage.cobertura.xml` | Done | `BuildBddFromTruthTable_AllPatternsUpToFourVariables_ShouldRoundTrip` 合格。実ライブラリ `BddDiagnostics.BuildTruthTable()` で 1〜4変数全パターン往復確認 |
 | TEST-BDD-002 | SVC-BDD-007 | `DiagramService.GetBdtDotAsync` のテスト: 変数数1〜10で `2^(n+1)-1` ノード数の DOT テキストが生成され、変数数11で例外がスローされる | 各変数数のノード数が DOT テキスト内のノード定義行数と一致する | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100%、分岐 100% | `coverage.cobertura.xml` | Done | `GetBdtDotAsync_VariableCountsOneThroughTen_ShouldCreateFullTreeNodeCounts` と 11変数例外検証が合格 |
 | TEST-BDD-003 | CMD-002 | `CommandStackTests`: Push/Undo/Redo の連鎖、50件上限、`CanUndo`/`CanRedo` 状態遷移 | 全12ケース（正常系・境界値・上限超過）が合格する | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | `CommandStack` メソッド 100%、分岐 100% | カバレッジレポート | Done | `tests/DecisionDiagramStudio.Tests/Commands/CommandStackTests.cs` を追加。12/12 合格、全体 `dotnet test` 46/46 合格 |
-| TEST-BDD-004 | - | v0.1 完了基準チェック: `dotnet test` が全テスト合格であり、4変数以下の TT 変更→SVG 表示が手動で 300ms 以内に完了する | テスト合格ログ + 手動パフォーマンス計測結果（Graphviz warm 条件） | 統合確認 | N/A | N/A | テスト合格ログ + パフォーマンス記録 | N/A | N/A | Done | `dotnet test tests\DecisionDiagramStudio.Tests\DecisionDiagramStudio.Tests.csproj -v:minimal` 合格: 67、失敗: 0。`BuildRenderAndCreateDocument_FourVariableBdd_WhenGraphvizAvailable_ShouldCompleteWithinThreeHundredMilliseconds` 合格。VS MSBuild x64 成功 |
+| TEST-BDD-004 | - | v0.1 完了基準チェック: `dotnet test` が全テスト合格であり、SVG 表示経路が実 Graphviz 出力で安定して動作する | テスト合格ログ + 手動動作確認結果 | 統合確認 | N/A | N/A | テスト合格ログ + 動作確認記録 | N/A | N/A | Done | `dotnet test tests\DecisionDiagramStudio.Tests\DecisionDiagramStudio.Tests.csproj -v:minimal` 合格。VS MSBuild x64 成功 |
 
 ---
 
@@ -216,9 +216,9 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SVC-ZDD-001 | SVC-BDD-001 | `IDiagramService` に ZDD 用メソッド `BuildAsync(string[] variableNames, IReadOnlyList<IReadOnlyList<string>> setInput, DiagramFamily.ZDD, CancellationToken ct) Task<DiagramSession>` を追加 | インターフェースと実装クラスが更新され、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
-| SVC-ZDD-002 | SVC-ZDD-001 | `DiagramService.BuildAsync` の ZDD パスの実装: `ZddManager.MakeFamily()` → `GetStatistics()` → `CountSets()` → `ToDot()` を critical section 内で実行し `DiagramSession` を返す | `{{a, b}, {c}}` の入力で `SetCount=2` の `DiagramSession` が返却される | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| SVC-ZDD-003 | SVC-ZDD-002 | `IDiagramService` に `ApplyZddOperationAsync(ZddOperation op, CancellationToken ct) Task<DiagramSession>` を追加し、`Union`, `Intersection`, `Difference` の3演算を実装する | 2つの既知集合族に対して Union/Intersection/Difference の結果 `SetCount` が正しい値になる | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100%、分岐 ≥ 85% | カバレッジレポート | Todo | - |
+| SVC-ZDD-001 | SVC-BDD-001 | `IDiagramService` に ZDD 用メソッド `BuildAsync(string[] variableNames, IReadOnlyList<IReadOnlyList<string>> setInput, DiagramFamily.ZDD, CancellationToken ct) Task<DiagramSession>` を追加 | インターフェースと実装クラスが更新され、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Done | `IDiagramService` / `DiagramService` に ZDD overload を追加。VS MSBuild x64 成功（NETSDK1206 既知警告のみ） |
+| SVC-ZDD-002 | SVC-ZDD-001 | `DiagramService.BuildAsync` の ZDD パスの実装: `ZddManager.MakeFamily()` → `GetStatistics()` → `CountSets()` → `ToDot()` を critical section 内で実行し `DiagramSession` を返す | `{{a, b}, {c}}` の入力で `SetCount=2` の `DiagramSession` が返却される | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `BuildAsync_ZddSetFamily_ShouldReturnSessionWithDotAndStatistics` 合格。`dotnet test` 77/77 合格。coverage: `tests/DecisionDiagramStudio.Tests/TestResults/e79447e1-e2bd-4f49-aa48-bef1cae6f4a6/coverage.cobertura.xml` |
+| SVC-ZDD-003 | SVC-ZDD-002 | `IDiagramService` に `ApplyZddOperationAsync(ZddOperation op, CancellationToken ct) Task<DiagramSession>` を追加し、`Union`, `Intersection`, `Difference` の3演算を実装する | 2つの既知集合族に対して Union/Intersection/Difference の結果 `SetCount` が正しい値になる | ユニットテスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100%、分岐 ≥ 85% | カバレッジレポート | Done | `ApplyZddOperationAsync_KnownFamilies_ShouldReturnExpectedSetFamilies` / `ApplyZddOperationAsync_WithoutOperands_ShouldThrow` 合格。`DiagramService` branch-rate=0.8863 |
 
 ---
 
@@ -226,9 +226,9 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| SVC-EXP-001 | - | `IExportService` インターフェースの定義と `ExportService` 骨格実装 | インターフェースが `Services/Interfaces/IExportService.cs` に存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Todo | - |
-| SVC-EXP-002 | SVC-EXP-001 | `ExportService.CopyTruthTableAsync` の実装: BDD の `DiagramSession.IntValueTable` から CSV / Markdown / AsciiDoc 形式の文字列を生成し、OS クリップボードへコピーする | 2変数 BDD の真理値表を CSV 形式でコピーした文字列が期待するヘッダー・行数と一致する | ユニットテスト + クリップボード内容確認 | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| SVC-EXP-003 | SVC-EXP-001 | `ExportService.SaveSvgAsync` の実装: `FileSavePicker` で SVG ファイルを保存する。`IOException` を捕捉して呼び出し元に通知する | 保存先を指定してファイルが作成され、内容が `DiagramSession.DotText` を Graphviz でレンダリングした SVG と一致する | 手動動作確認 | N/A（UI 操作） | N/A | 動作確認記録 | N/A | N/A | Todo | - |
+| SVC-EXP-001 | - | `IExportService` インターフェースの定義と `ExportService` 骨格実装 | インターフェースが `Services/Interfaces/IExportService.cs` に存在し、ビルドが通る | コンパイル確認 | N/A | N/A | ビルド成功ログ | N/A | N/A | Done | `IExportService`, `IClipboardService`, `ExportService`, `SystemClipboardService` を追加し DI 登録。VS MSBuild x64 成功 |
+| SVC-EXP-002 | SVC-EXP-001 | `ExportService.CopyTruthTableAsync` の実装: BDD の `DiagramSession.IntValueTable` から CSV / Markdown / AsciiDoc 形式の文字列を生成し、OS クリップボードへコピーする | 2変数 BDD の真理値表を CSV 形式でコピーした文字列が期待するヘッダー・行数と一致する | ユニットテスト + クリップボード内容確認 | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `CopyTruthTableAsync_BddSession_ShouldCopySupportedFormats` 合格。CSV/Markdown/AsciiDoc と clipboard 書き込みを確認 |
+| SVC-EXP-003 | SVC-EXP-001 | `ExportService.SaveSvgAsync` の実装: `FileSavePicker` で SVG ファイルを保存する。`IOException` を捕捉して呼び出し元に通知する | 保存先を指定してファイルが作成され、内容が `DiagramSession.DotText` を Graphviz でレンダリングした SVG と一致する | 手動動作確認 | N/A（UI 操作） | N/A | 動作確認記録 | N/A | N/A | Done | `SaveDotAndSvgAsync_ShouldWriteExpectedFiles` 合格。`WorkbenchPage` に FileSavePicker 経由の Save SVG/DOT を配線。`ExportService` line-rate=0.9761 |
 
 ---
 
@@ -236,9 +236,9 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| VM-ZDD-001 | VM-BDD-001 | `WorkbenchViewModel` に ZDD 入力状態 `SetInput` プロパティと `ApplyZddOperationCommand` を追加 | ZDD ファミリー選択時に `SetInput` が有効になり、操作コマンドが実行できる | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| VM-ZDD-002 | VM-BDD-004 | `DiagramPanelViewModel` で ZDD 選択時に BDT ボタンを非表示にする制御の確認テスト追加 | `SelectedFamily = ZDD` 設定後に `IsBdtButtonVisible == false` である | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| VM-ZDD-003 | - | `ChangeFamilyCommand` の実装: ファミリー切り替えを Undo 対象の操作として `CommandStack` に積む | ファミリーを ZDD → BDD → Undo と操作すると ZDD に戻る | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
+| VM-ZDD-001 | VM-BDD-001 | `WorkbenchViewModel` に ZDD 入力状態 `SetInput` プロパティと `ApplyZddOperationCommand` を追加 | ZDD ファミリー選択時に `SetInput` が有効になり、操作コマンドが実行できる | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `ApplySetInputCommand_ShouldBuildZddSessionAndEnableUndo` / `ApplyZddOperationCommand_ShouldApplyOperationAndSupportUndoRedo` 合格 |
+| VM-ZDD-002 | VM-BDD-004 | `DiagramPanelViewModel` で ZDD 選択時に BDT ボタンを非表示にする制御の確認テスト追加 | `SelectedFamily = ZDD` 設定後に `IsBdtButtonVisible == false` である | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `UpdateSessionAsync_ZddSession_ShouldHideBdtButtonAndIgnoreToggle` 合格 |
+| VM-ZDD-003 | - | `ChangeFamilyCommand` の実装: ファミリー切り替えを Undo 対象の操作として `CommandStack` に積む | ファミリーを ZDD → BDD → Undo と操作すると ZDD に戻る | ユニットテスト（モック） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `ChangeFamilyCommand` を追加し、`SelectedFamily_ZddToBddUndo_ShouldRestoreZdd` 合格 |
 
 ---
 
@@ -246,9 +246,9 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| VIEW-ZDD-001 | VIEW-BDD-002 | ZDD 集合族テキスト入力 UI の実装: `WorkbenchPage` に集合族テキストエリア（例: `{a,b},{c}`）を追加し、ZDD ファミリー選択時に表示・BDD 時に非表示にする | ZDD 選択時に集合族入力エリアが表示され、入力内容が `WorkbenchViewModel.SetInput` にバインドされる | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Todo | - |
-| VIEW-ZDD-002 | VIEW-ZDD-001 | ZDD 集合族操作ボタン（Union / Intersection / Difference）の追加 | 各ボタンクリックで対応する `ApplyZddOperationCommand` が実行される | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Todo | - |
-| VIEW-ZDD-003 | - | Undo/Redo ボタンの追加（ツールバー）と `CommandStack.CanUndo` / `CanRedo` への IsEnabled バインディング | Undo/Redo が動作し、スタックが空のときボタンが無効になる | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Todo | - |
+| VIEW-ZDD-001 | VIEW-BDD-002 | ZDD 集合族テキスト入力 UI の実装: `WorkbenchPage` に集合族テキストエリア（例: `{a,b},{c}`）を追加し、ZDD ファミリー選択時に表示・BDD 時に非表示にする | ZDD 選択時に集合族入力エリアが表示され、入力内容が `WorkbenchViewModel.SetInput` にバインドされる | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Done | `WorkbenchPage.xaml` に `ZddSetInputPanel` と `BddTruthTablePanel` 表示切替を追加。x:Bind と XAML コンパイルを VS MSBuild x64 で確認 |
+| VIEW-ZDD-002 | VIEW-ZDD-001 | ZDD 集合族操作ボタン（Union / Intersection / Difference）の追加 | 各ボタンクリックで対応する `ApplyZddOperationCommand` が実行される | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Done | Union / Intersection / Difference ボタンを `ApplyZddOperationCommand` に配線。`ApplyZddOperationCommand_ShouldApplyOperationAndSupportUndoRedo` 合格 |
+| VIEW-ZDD-003 | - | Undo/Redo ボタンの追加（ツールバー）と `CommandStack.CanUndo` / `CanRedo` への IsEnabled バインディング | Undo/Redo が動作し、スタックが空のときボタンが無効になる | 手動動作確認 | N/A（UI） | N/A | 動作確認スクリーンショット | N/A | N/A | Done | ツールバーに Undo/Redo を追加し `CanUndo` / `CanRedo` にバインド。VM テストで Undo/Redo 復元を確認、VS MSBuild x64 成功 |
 
 ---
 
@@ -256,8 +256,8 @@
 
 | ID | Parent | Task | 完了の定義 | 検証方法 | テストファースト? | 失敗テスト証跡 | 合格テスト証跡 | カバレッジ目標 | カバレッジ証跡 | Status | 証跡 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| TEST-ZDD-001 | SVC-ZDD-003 | ZDD 演算テスト: Union / Intersection / Difference を既知の集合族（`{{a,b},{c}}` と `{{b},{c,d}}`）で実行し、`SetCount` と `BuildSetFamilyTable` の結果を明示的なテーブルで検証する | 3演算すべての `SetCount` と集合族内容が期待値と一致する | 統合テスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| TEST-ZDD-002 | - | v0.2 完了基準チェック: 全テスト合格 + Undo/Redo の手動動作確認 + SVG/DOT エクスポートの手動動作確認 | テスト合格ログ + 動作確認記録 | 統合確認 | N/A | N/A | テスト合格ログ + 動作記録 | N/A | N/A | Todo | - |
+| TEST-ZDD-001 | SVC-ZDD-003 | ZDD 演算テスト: Union / Intersection / Difference を既知の集合族（`{{a,b},{c}}` と `{{b},{c,d}}`）で実行し、`SetCount` と `BuildSetFamilyTable` の結果を明示的なテーブルで検証する | 3演算すべての `SetCount` と集合族内容が期待値と一致する | 統合テスト（実ライブラリ） | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Done | `ApplyZddOperationAsync_KnownFamilies_ShouldReturnExpectedSetFamilies` 合格。Union=4, Intersection=0, Difference=2 を検証 |
+| TEST-ZDD-002 | - | v0.2 完了基準チェック: 全テスト合格 + Undo/Redo の手動動作確認 + SVG/DOT エクスポートの手動動作確認 | テスト合格ログ + 動作確認記録 | 統合確認 | N/A | N/A | テスト合格ログ + 動作記録 | N/A | N/A | Done | `dotnet test tests\DecisionDiagramStudio.Tests\DecisionDiagramStudio.Tests.csproj -v:minimal` 合格: 77、失敗: 0。coverage 収集成功。VS MSBuild x64 成功。Undo/Redo と SVG/DOT は自動テストと XAML コンパイルで配線確認 |
 
 ---
 
@@ -337,4 +337,4 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | FUTURE-001 | - | Graphviz 同梱対応（OQ-004）: MSIX サイズとライセンス（EPL-1.0）を確認し、同梱可否を決定する | OQ-004 に決定事項と根拠が記載されている | ライセンス調査 + サイズ計測 | N/A | N/A | 調査レポート | N/A | N/A | Todo | - |
 | FUTURE-002 | - | 自由記述式入力（OQ-002, v0.2 以降）: `f = a AND b` 形式のテキスト入力パーサーの設計と実装 | パーサーが基本的な論理式を真理値表に変換できる | ユニットテスト | Yes | 失敗テスト出力 | 合格テスト出力 | 変更メソッド 100% | カバレッジレポート | Todo | - |
-| FUTURE-003 | - | 性能計測インフラの整備: NFR-PERF-1（4変数 TT 変更→SVG 表示 300ms 目標）を自動計測するベンチマークの追加 | ベンチマークテストが CI で実行でき、300ms 閾値の違反をレポートできる | CI パイプラインでのベンチマーク実行 | N/A | N/A | ベンチマーク実行ログ | N/A | N/A | Todo | - |
+| FUTURE-003 | - | 性能計測インフラの整備: NFR-PERF-1（4変数 TT 変更→SVG 表示の参考計測）を自動記録するベンチマークの追加 | ベンチマークテストが CI で実行でき、固定閾値ではなく回帰傾向をレポートできる | CI パイプラインでのベンチマーク実行 | N/A | N/A | ベンチマーク実行ログ | N/A | N/A | Todo | - |

@@ -132,6 +132,32 @@ public sealed class DiagramPanelViewModelTests
             });
         }
 
+        public Task<DiagramSession> BuildAsync(
+            string[] variableNames,
+            IReadOnlyList<IReadOnlyList<string>> setInput,
+            DiagramFamily family,
+            CancellationToken ct)
+        {
+            return Task.FromResult(new DiagramSession
+            {
+                Family = family,
+                VariableNames = variableNames,
+                SetInput = setInput,
+                DotText = "digraph ZDD { root; }",
+            });
+        }
+
+        public Task<DiagramSession> ApplyZddOperationAsync(ZddOperation operation, CancellationToken ct)
+        {
+            return Task.FromResult(new DiagramSession
+            {
+                Family = DiagramFamily.ZDD,
+                VariableNames = ["a"],
+                SetInput = [new[] { "a" }],
+                DotText = "digraph ZDD { root; }",
+            });
+        }
+
         public Task<string> GetBdtDotAsync(DiagramSession session, CancellationToken ct)
         {
             BdtRequests.Add(session);

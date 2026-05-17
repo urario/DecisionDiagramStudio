@@ -248,6 +248,98 @@ public sealed class DiagramServiceTests
     }
 
     /// <summary>
+    /// Verifies that the ZDD BuildAsync overload materializes a set-family session.
+    /// </summary>
+    [TestMethod]
+    public async Task BuildAsync_ZddSetFamily_ShouldReturnSessionWithDotAndStatistics()
+    {
+        // Arrange
+        var service = new DiagramService();
+        var variableNames = new[] { "a", "b", "c" };
+        IReadOnlyList<IReadOnlyList<string>> sets = [new[] { "a", "b" }, new[] { "c" }];
+
+        // Act
+        var session = await service.BuildAsync(variableNames, sets, DiagramFamily.ZDD, CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(DiagramFamily.ZDD, session.Family, "The ZDD overload should return a ZDD session.");
+        CollectionAssert.AreEqual(variableNames, session.VariableNames, "The session should keep the variable-name snapshot.");
+        Assert.IsNull(session.IntValueTable, "ZDD sessions should not carry a BDD truth table.");
+        Assert.IsNotNull(session.SetInput, "ZDD sessions should carry a set-family snapshot.");
+        Assert.AreEqual(2L, session.Statistics.SetCount, "The set count should come from the ZDD manager.");
+        Assert.AreEqual(3, session.Statistics.VariableCount, "Statistics should reflect the ZDD variable count.");
+        StringAssert.StartsWith(session.DotText, "digraph ZDD");
+        CollectionAssert.AreEquivalent(
+            new[] { "a,b", "c" },
+            NormalizeSetInput(session.SetInput!),
+            "The session should expose the represented set family.");
+    }
+
+    /// <summary>
+    /// Verifies that invalid ZDD set-family input is rejected at the service boundary.
+    /// </summary>
+    [TestMethod]
+    public async Task BuildAsync_ZddInvalidSetInput_ShouldThrow()
+    {
+        // Arrange
+        var service = new DiagramService();
+
+        // Act / Assert
+        await Assert.ThrowsExceptionAsync<ArgumentException>(
+            () => service.BuildAsync(
+                new[] { "a" },
+                [new[] { "b" }],
+                DiagramFamily.ZDD,
+                CancellationToken.None),
+            "ZDD set members must be declared variables.");
+
+        await Assert.ThrowsExceptionAsync<NotSupportedException>(
+            () => service.BuildAsync(
+                new[] { "a" },
+                [new[] { "a" }],
+                DiagramFamily.BDD,
+                CancellationToken.None),
+            "The set-family overload is only for ZDD.");
+    }
+
+    /// <summary>
+    /// Verifies Union, Intersection, and Difference over known set families.
+    /// </summary>
+    [TestMethod]
+    public async Task ApplyZddOperationAsync_KnownFamilies_ShouldReturnExpectedSetFamilies()
+    {
+        await AssertZddOperationAsync(
+            ZddOperation.Union,
+            4L,
+            ["a,b", "b", "c", "c,d"]).ConfigureAwait(false);
+
+        await AssertZddOperationAsync(
+            ZddOperation.Intersection,
+            0L,
+            []).ConfigureAwait(false);
+
+        await AssertZddOperationAsync(
+            ZddOperation.Difference,
+            2L,
+            ["a,b", "c"]).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Verifies that ZDD operations require two built operands.
+    /// </summary>
+    [TestMethod]
+    public async Task ApplyZddOperationAsync_WithoutOperands_ShouldThrow()
+    {
+        // Arrange
+        var service = new DiagramService();
+
+        // Act / Assert
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(
+            () => service.ApplyZddOperationAsync(ZddOperation.Union, CancellationToken.None),
+            "The service should require two ZDD operands before an operation.");
+    }
+
+    /// <summary>
     /// Verifies that BuildAsync serializes access to the underlying managers.
     /// </summary>
     [TestMethod]
@@ -409,6 +501,43 @@ public sealed class DiagramServiceTests
                     && trimmed.Contains(" [label=", StringComparison.Ordinal)
                     && !trimmed.Contains(" -> ", StringComparison.Ordinal);
             });
+    }
+
+    private static async Task AssertZddOperationAsync(
+        ZddOperation operation,
+        long expectedSetCount,
+        string[] expectedSets)
+    {
+        var service = new DiagramService();
+        var variableNames = new[] { "a", "b", "c", "d" };
+
+        _ = await service.BuildAsync(
+            variableNames,
+            [new[] { "a", "b" }, new[] { "c" }],
+            DiagramFamily.ZDD,
+            CancellationToken.None).ConfigureAwait(false);
+        _ = await service.BuildAsync(
+            variableNames,
+            [new[] { "b" }, new[] { "c", "d" }],
+            DiagramFamily.ZDD,
+            CancellationToken.None).ConfigureAwait(false);
+
+        var session = await service.ApplyZddOperationAsync(operation, CancellationToken.None).ConfigureAwait(false);
+
+        Assert.AreEqual(DiagramFamily.ZDD, session.Family, "Operations should return a ZDD session.");
+        Assert.AreEqual(expectedSetCount, session.Statistics.SetCount, "The operation set count should match the expected family.");
+        CollectionAssert.AreEquivalent(
+            expectedSets,
+            NormalizeSetInput(session.SetInput!),
+            operation.ToString() + " should return the expected set family.");
+    }
+
+    private static string[] NormalizeSetInput(IReadOnlyList<IReadOnlyList<string>> setInput)
+    {
+        return setInput
+            .Select(set => string.Join(",", set.Order(StringComparer.Ordinal)))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static void UpdateMax(ref int target, int value)

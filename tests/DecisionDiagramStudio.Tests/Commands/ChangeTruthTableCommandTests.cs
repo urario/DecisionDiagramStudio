@@ -65,6 +65,34 @@ public sealed class ChangeTruthTableCommandTests
             return Task.FromResult(session);
         }
 
+        public Task<DiagramSession> BuildAsync(
+            string[] variableNames,
+            IReadOnlyList<IReadOnlyList<string>> setInput,
+            DiagramFamily family,
+            CancellationToken ct)
+        {
+            return Task.FromResult(new DiagramSession
+            {
+                Family = family,
+                VariableNames = (string[])variableNames.Clone(),
+                VariableOrder = Enumerable.Range(0, variableNames.Length).ToArray(),
+                SetInput = setInput.Select(set => (IReadOnlyList<string>)set.ToArray()).ToArray(),
+                DotText = "digraph ZDD { }",
+            });
+        }
+
+        public Task<DiagramSession> ApplyZddOperationAsync(ZddOperation operation, CancellationToken ct)
+        {
+            return Task.FromResult(new DiagramSession
+            {
+                Family = DiagramFamily.ZDD,
+                VariableNames = ["a"],
+                VariableOrder = [0],
+                SetInput = [new[] { "a" }],
+                DotText = "digraph ZDD { }",
+            });
+        }
+
         public Task<string> GetBdtDotAsync(DiagramSession session, CancellationToken ct)
         {
             return Task.FromResult("digraph BDT { }");

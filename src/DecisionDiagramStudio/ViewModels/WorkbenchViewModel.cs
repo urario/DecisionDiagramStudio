@@ -17,7 +17,7 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the default delay used to debounce truth-table edits.
     /// </summary>
-    public static readonly TimeSpan DefaultDebounceDelay = TimeSpan.FromMilliseconds(300);
+    public static readonly TimeSpan DefaultDebounceDelay = TimeSpan.FromMilliseconds(150);
 
     private readonly IDiagramService _diagramService;
     private readonly IPresetService _presetService;
@@ -29,6 +29,9 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _buildCancellation;
     private Task _pendingBuildTask = Task.CompletedTask;
     private int[] _lastCommittedValues;
+    private IReadOnlyList<IReadOnlyList<string>> _lastCommittedSetInput = [new[] { "a" }];
+    private DiagramFamily _familyBeforeChange;
+    private bool _suppressFamilyChangeCommand;
     private bool _disposed;
 
     [ObservableProperty]
@@ -39,6 +42,15 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private int[] _intValueTable = [0, 1];
+
+    [ObservableProperty]
+    private string _setInputText = "{a}";
+
+    [ObservableProperty]
+    private IReadOnlyList<IReadOnlyList<string>> _setInput = [new[] { "a" }];
+
+    [ObservableProperty]
+    private string _zddOperationInputText = "{a}";
 
     [ObservableProperty]
     private DiagramFamily _selectedFamily = DiagramFamily.BDD;
@@ -120,6 +132,10 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         SelectPresetCommand = new RelayCommand<string?>(SelectPreset);
         ApplyVariableNamesCommand = new RelayCommand(ApplyVariableNamesFromCommand);
+        ApplySetInputCommand = new RelayCommand(ApplySetInputFromCommand);
+        ApplyZddOperationCommand = new RelayCommand<string?>(ApplyZddOperationFromCommand);
+        UndoCommand = new RelayCommand(Undo, () => CanUndo);
+        RedoCommand = new RelayCommand(Redo, () => CanRedo);
         RebuildCommand = new RelayCommand(RebuildCurrentSession);
         ChangeTruthTableCellCommand = new RelayCommand<TruthTableCellChange>(change =>
         {
@@ -144,9 +160,49 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     public string SelectedFamilyLabel => SelectedFamily.ToString();
 
     /// <summary>
+    /// Gets a value indicating whether BDD-specific input controls should be visible.
+    /// </summary>
+    public bool IsBddInputVisible => SelectedFamily == DiagramFamily.BDD;
+
+    /// <summary>
+    /// Gets a value indicating whether ZDD-specific input controls should be visible.
+    /// </summary>
+    public bool IsZddInputVisible => SelectedFamily == DiagramFamily.ZDD;
+
+    /// <summary>
+    /// Gets a value indicating whether the command stack can undo.
+    /// </summary>
+    public bool CanUndo => _commandStack.CanUndo;
+
+    /// <summary>
+    /// Gets a value indicating whether the command stack can redo.
+    /// </summary>
+    public bool CanRedo => _commandStack.CanRedo;
+
+    /// <summary>
     /// Gets the command that applies the text in the variable-name input.
     /// </summary>
     public IRelayCommand ApplyVariableNamesCommand { get; }
+
+    /// <summary>
+    /// Gets the command that applies ZDD set-family text.
+    /// </summary>
+    public IRelayCommand ApplySetInputCommand { get; }
+
+    /// <summary>
+    /// Gets the command that applies a ZDD set-family operation.
+    /// </summary>
+    public IRelayCommand<string?> ApplyZddOperationCommand { get; }
+
+    /// <summary>
+    /// Gets the command that undoes the latest undoable workbench change.
+    /// </summary>
+    public IRelayCommand UndoCommand { get; }
+
+    /// <summary>
+    /// Gets the command that redoes the latest undone workbench change.
+    /// </summary>
+    public IRelayCommand RedoCommand { get; }
 
     /// <summary>
     /// Gets the command that rebuilds the current input without changing it.
@@ -214,7 +270,7 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
 
         VariableNames = presetVariables;
         IntValueTable = presetValues;
-        SelectedFamily = preset.DefaultFamily;
+        SetSelectedFamilySilently(preset.DefaultFamily);
 
         var beforeValues = _lastCommittedValues.Length == presetValues.Length
             ? (int[])_lastCommittedValues.Clone()
@@ -238,7 +294,132 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
             IntValueTable.Length);
 
         var cancellation = ReplaceBuildCancellation();
+        if (SelectedFamily == DiagramFamily.ZDD)
+        {
+            var setInput = ParseSetInputText(SetInputText);
+            var variableNames = MergeVariableNames(VariableNames, setInput);
+            PushSetInputCommand(
+                VariableNames,
+                _lastCommittedSetInput,
+                variableNames,
+                setInput,
+                cancellation.Token);
+            return;
+        }
+
         PushTruthTableCommand((int[])_lastCommittedValues.Clone(), (int[])IntValueTable.Clone(), cancellation.Token);
+    }
+
+    /// <summary>
+    /// Applies the current ZDD set-family text and rebuilds a ZDD session.
+    /// </summary>
+    public void ApplySetInput()
+    {
+        ThrowIfDisposed();
+        CancelPendingBuild();
+
+        var afterSetInput = ParseSetInputText(SetInputText);
+        var beforeSetInput = CurrentSession?.Family == DiagramFamily.ZDD && CurrentSession.SetInput is not null
+            ? CurrentSession.SetInput
+            : _lastCommittedSetInput;
+        var afterVariableNames = MergeVariableNames(VariableNames, afterSetInput);
+        var beforeVariableNames = CurrentSession?.Family == DiagramFamily.ZDD
+            ? CurrentSession.VariableNames
+            : afterVariableNames;
+
+        _logger.LogInformation(
+            "ZDD set input applied. VariableCount={VariableCount} SetInputCount={SetInputCount}",
+            afterVariableNames.Length,
+            afterSetInput.Count);
+
+        SetSelectedFamilySilently(DiagramFamily.ZDD);
+        var cancellation = ReplaceBuildCancellation();
+        PushSetInputCommand(
+            beforeVariableNames,
+            beforeSetInput,
+            afterVariableNames,
+            afterSetInput,
+            cancellation.Token);
+    }
+
+    /// <summary>
+    /// Applies a ZDD operation between the current ZDD session and the operation-input text.
+    /// </summary>
+    /// <param name="operation">The operation to execute.</param>
+    public void ApplyZddOperation(ZddOperation operation)
+    {
+        ThrowIfDisposed();
+        if (CurrentSession is null || CurrentSession.Family != DiagramFamily.ZDD || CurrentSession.SetInput is null)
+        {
+            throw new InvalidOperationException("Build a ZDD session before applying a ZDD operation.");
+        }
+
+        CancelPendingBuild();
+        var operandSetInput = ParseSetInputText(ZddOperationInputText);
+        var variableNames = MergeVariableNames(CurrentSession.VariableNames, operandSetInput);
+        var leftSetInput = CurrentSession.SetInput;
+
+        _logger.LogInformation(
+            "ZDD operation applying. Operation={Operation} VariableCount={VariableCount} OperandSetCount={OperandSetCount}",
+            operation,
+            variableNames.Length,
+            operandSetInput.Count);
+
+        var cancellation = ReplaceBuildCancellation();
+        var beforeSession = CurrentSession;
+        IsBuilding = true;
+        ErrorMessage = string.Empty;
+        try
+        {
+            _ = _diagramService
+                .BuildAsync((string[])variableNames.Clone(), CloneSetInput(leftSetInput), DiagramFamily.ZDD, cancellation.Token)
+                .GetAwaiter()
+                .GetResult();
+            _ = _diagramService
+                .BuildAsync((string[])variableNames.Clone(), CloneSetInput(operandSetInput), DiagramFamily.ZDD, cancellation.Token)
+                .GetAwaiter()
+                .GetResult();
+            var afterSession = _diagramService
+                .ApplyZddOperationAsync(operation, cancellation.Token)
+                .GetAwaiter()
+                .GetResult();
+            PushCommand(new ApplyDiagramSessionCommand(beforeSession, afterSession, ApplySession));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(
+                "ZDD operation failed. Operation={Operation} ExceptionType={ExceptionType}",
+                operation,
+                ex.GetType().Name);
+            ErrorMessage = ex.Message;
+            throw;
+        }
+        finally
+        {
+            IsBuilding = false;
+        }
+    }
+
+    /// <summary>
+    /// Undoes the latest command-stack operation.
+    /// </summary>
+    public void Undo()
+    {
+        ThrowIfDisposed();
+        ErrorMessage = string.Empty;
+        _commandStack.Undo();
+        RefreshUndoRedoState();
+    }
+
+    /// <summary>
+    /// Redoes the latest command-stack operation.
+    /// </summary>
+    public void Redo()
+    {
+        ThrowIfDisposed();
+        ErrorMessage = string.Empty;
+        _commandStack.Redo();
+        RefreshUndoRedoState();
     }
 
     /// <summary>
@@ -290,7 +471,19 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
     partial void OnSelectedFamilyChanged(DiagramFamily value)
     {
         OnPropertyChanged(nameof(SelectedFamilyLabel));
+        OnPropertyChanged(nameof(IsBddInputVisible));
+        OnPropertyChanged(nameof(IsZddInputVisible));
         _logger.LogInformation("Diagram family changed. Family={Family}", value);
+
+        if (!_suppressFamilyChangeCommand && _familyBeforeChange != value)
+        {
+            ChangeFamily(_familyBeforeChange, value);
+        }
+    }
+
+    partial void OnSelectedFamilyChanging(DiagramFamily oldValue, DiagramFamily newValue)
+    {
+        _familyBeforeChange = oldValue;
     }
 
     private void ApplyVariableNamesFromCommand()
@@ -303,6 +496,41 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         {
             _logger.LogWarning(
                 "Variable-name apply failed. ExceptionType={ExceptionType}",
+                ex.GetType().Name);
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    private void ApplySetInputFromCommand()
+    {
+        try
+        {
+            ApplySetInput();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "ZDD set input apply failed. ExceptionType={ExceptionType}",
+                ex.GetType().Name);
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    private void ApplyZddOperationFromCommand(string? operationName)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(operationName) || !Enum.TryParse<ZddOperation>(operationName, out var operation))
+            {
+                throw new ArgumentException("A supported ZDD operation is required.", nameof(operationName));
+            }
+
+            ApplyZddOperation(operation);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "ZDD operation command failed. ExceptionType={ExceptionType}",
                 ex.GetType().Name);
             ErrorMessage = ex.Message;
         }
@@ -386,6 +614,50 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         return Task.CompletedTask;
     }
 
+    private void ChangeFamily(DiagramFamily beforeFamily, DiagramFamily afterFamily)
+    {
+        if (afterFamily is not (DiagramFamily.BDD or DiagramFamily.ZDD))
+        {
+            SetSelectedFamilySilently(beforeFamily);
+            throw new NotSupportedException("Only BDD and ZDD are selectable in v0.2.");
+        }
+
+        CancelPendingBuild();
+        var cancellation = ReplaceBuildCancellation();
+        var setInput = ParseSetInputText(SetInputText);
+        var variableNames = afterFamily == DiagramFamily.ZDD ? MergeVariableNames(VariableNames, setInput) : VariableNames;
+        IsBuilding = true;
+        ErrorMessage = string.Empty;
+        try
+        {
+            var command = new ChangeFamilyCommand(
+                _diagramService,
+                beforeFamily,
+                afterFamily,
+                variableNames,
+                IntValueTable,
+                setInput,
+                ApplySession,
+                cancellation.Token);
+            PushCommand(command);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(
+                "Family change failed. BeforeFamily={BeforeFamily} AfterFamily={AfterFamily} ExceptionType={ExceptionType}",
+                beforeFamily,
+                afterFamily,
+                ex.GetType().Name);
+            ErrorMessage = ex.Message;
+            SetSelectedFamilySilently(beforeFamily);
+            throw;
+        }
+        finally
+        {
+            IsBuilding = false;
+        }
+    }
+
     private void PushTruthTableCommand(int[] beforeValues, int[] afterValues, CancellationToken cancellationToken)
     {
         IsBuilding = true;
@@ -406,7 +678,7 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
                 SelectedFamily,
                 ApplySession,
                 cancellationToken);
-            _commandStack.Push(command);
+            PushCommand(command);
             _logger.LogDebug(
                 "Truth-table command push completed. Family={Family} VariableCount={VariableCount} RowCount={RowCount}",
                 SelectedFamily,
@@ -430,6 +702,47 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void PushSetInputCommand(
+        string[] beforeVariableNames,
+        IReadOnlyList<IReadOnlyList<string>> beforeSetInput,
+        string[] afterVariableNames,
+        IReadOnlyList<IReadOnlyList<string>> afterSetInput,
+        CancellationToken cancellationToken)
+    {
+        IsBuilding = true;
+        ErrorMessage = string.Empty;
+        try
+        {
+            var command = new ChangeSetInputCommand(
+                _diagramService,
+                beforeVariableNames,
+                beforeSetInput,
+                afterVariableNames,
+                afterSetInput,
+                ApplySession,
+                cancellationToken);
+            PushCommand(command);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(
+                "ZDD set input command push failed. ExceptionType={ExceptionType}",
+                ex.GetType().Name);
+            ErrorMessage = ex.Message;
+            throw;
+        }
+        finally
+        {
+            IsBuilding = false;
+        }
+    }
+
+    private void PushCommand(IUndoableCommand command)
+    {
+        _commandStack.Push(command);
+        RefreshUndoRedoState();
+    }
+
     private void ApplySession(DiagramSession session)
     {
         CurrentSession = session;
@@ -439,13 +752,41 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
             IntValueTable = (int[])session.IntValueTable.Clone();
         }
 
+        if (session.SetInput is not null)
+        {
+            _lastCommittedSetInput = CloneSetInput(session.SetInput);
+            SetInput = _lastCommittedSetInput;
+            SetInputText = FormatSetInput(session.SetInput);
+        }
+
         VariableNames = (string[])session.VariableNames.Clone();
-        SelectedFamily = session.Family;
+        SetSelectedFamilySilently(session.Family);
         _logger.LogDebug(
             "Diagram session applied to workbench. Family={Family} VariableCount={VariableCount} RowCount={RowCount}",
             session.Family,
             session.VariableNames.Length,
             session.IntValueTable?.Length ?? 0);
+    }
+
+    private void RefreshUndoRedoState()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SetSelectedFamilySilently(DiagramFamily family)
+    {
+        _suppressFamilyChangeCommand = true;
+        try
+        {
+            SelectedFamily = family;
+        }
+        finally
+        {
+            _suppressFamilyChangeCommand = false;
+        }
     }
 
     private CancellationTokenSource ReplaceBuildCancellation()
@@ -503,6 +844,93 @@ public sealed partial class WorkbenchViewModel : ObservableObject, IDisposable
         }
 
         return variables;
+    }
+
+    private static IReadOnlyList<IReadOnlyList<string>> ParseSetInputText(string setInputText)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(setInputText);
+
+        var text = setInputText.Trim();
+        if (text.StartsWith("{{", StringComparison.Ordinal) && text.EndsWith("}}", StringComparison.Ordinal))
+        {
+            text = text[1..^1];
+        }
+
+        var sets = new List<IReadOnlyList<string>>();
+        var index = 0;
+        while (index < text.Length)
+        {
+            while (index < text.Length && (char.IsWhiteSpace(text[index]) || text[index] == ','))
+            {
+                index++;
+            }
+
+            if (index >= text.Length)
+            {
+                break;
+            }
+
+            if (text[index] != '{')
+            {
+                throw new ArgumentException("ZDD set input must use braces, for example {a,b},{c}.", nameof(setInputText));
+            }
+
+            var end = text.IndexOf('}', index + 1);
+            if (end < 0)
+            {
+                throw new ArgumentException("ZDD set input contains an unterminated set.", nameof(setInputText));
+            }
+
+            var body = text[(index + 1)..end];
+            var members = body.Split(
+                new[] { ',', ';', ' ', '\t', '\r', '\n' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            sets.Add(members);
+            index = end + 1;
+        }
+
+        if (sets.Count == 0)
+        {
+            throw new ArgumentException("At least one ZDD set is required.", nameof(setInputText));
+        }
+
+        return sets;
+    }
+
+    private static string[] MergeVariableNames(
+        IReadOnlyList<string> currentVariableNames,
+        IReadOnlyList<IReadOnlyList<string>> setInput)
+    {
+        var variables = new List<string>(currentVariableNames);
+        var seen = new HashSet<string>(variables, StringComparer.Ordinal);
+        foreach (var set in setInput)
+        {
+            foreach (var member in set)
+            {
+                if (seen.Add(member))
+                {
+                    variables.Add(member);
+                }
+            }
+        }
+
+        return variables.ToArray();
+    }
+
+    private static string FormatSetInput(IReadOnlyList<IReadOnlyList<string>> setInput)
+    {
+        return string.Join(",", setInput.Select(set => "{" + string.Join(",", set) + "}"));
+    }
+
+    private static IReadOnlyList<IReadOnlyList<string>> CloneSetInput(IReadOnlyList<IReadOnlyList<string>> setInput)
+    {
+        var clone = new IReadOnlyList<string>[setInput.Count];
+        for (var i = 0; i < setInput.Count; i++)
+        {
+            clone[i] = setInput[i].ToArray();
+        }
+
+        return clone;
     }
 
     private static int[] ResizeTruthTable(int[] currentValues, int variableCount)

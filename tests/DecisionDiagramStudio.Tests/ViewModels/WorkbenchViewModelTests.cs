@@ -29,14 +29,21 @@ public sealed class WorkbenchViewModelTests
         CollectionAssert.AreEqual(new[] { "a" }, viewModel.VariableNames, "The default BDD workbench should start with one variable.");
         Assert.AreEqual("a", viewModel.VariableNamesText, "The variable editor should mirror the initial variables.");
         CollectionAssert.AreEqual(new[] { 0, 1 }, viewModel.IntValueTable, "The default BDD table should be the identity table.");
+        CollectionAssert.AreEqual(new[] { "a" }, viewModel.SetInput[0].ToArray(), "The default ZDD input snapshot should be initialized.");
         Assert.AreEqual(2, viewModel.TruthTableRows.Count, "The formatted truth-table rows should mirror the initial table.");
         CollectionAssert.AreEqual(new[] { 0 }, viewModel.TruthTableRows[0].VariableValues.ToArray(), "Rows should expose per-variable values.");
         CollectionAssert.AreEqual(new[] { 1 }, viewModel.TruthTableRows[1].VariableValues.ToArray(), "Variable values should follow LSB-first row indexing.");
         Assert.AreEqual(1, viewModel.Presets.Count, "Available presets should be exposed for the view.");
         Assert.IsNotNull(viewModel.ApplyVariableNamesCommand, "Variable-name edits should be exposed as a command.");
+        Assert.IsNotNull(viewModel.ApplySetInputCommand, "ZDD set-family edits should be exposed as a command.");
+        Assert.IsNotNull(viewModel.ApplyZddOperationCommand, "ZDD operations should be exposed as a command.");
+        Assert.IsNotNull(viewModel.UndoCommand, "Undo should be exposed as a command.");
+        Assert.IsNotNull(viewModel.RedoCommand, "Redo should be exposed as a command.");
         Assert.IsNotNull(viewModel.RebuildCommand, "A rebuild command should be exposed for the initial view load.");
         Assert.IsNotNull(viewModel.SelectPresetCommand, "Preset selection should be exposed as a command.");
         Assert.IsNotNull(viewModel.ChangeTruthTableCellCommand, "Truth-table changes should be exposed as a command.");
+        Assert.IsTrue(viewModel.IsBddInputVisible, "BDD input should be visible for the default family.");
+        Assert.IsFalse(viewModel.IsZddInputVisible, "ZDD input should be hidden for the default family.");
     }
 
     /// <summary>
@@ -203,9 +210,96 @@ public sealed class WorkbenchViewModelTests
         Assert.ThrowsException<ObjectDisposedException>(() => viewModel.ChangeTruthTableCell(0, 1));
     }
 
+    /// <summary>
+    /// Verifies that ZDD set-family input builds a ZDD session and enables undo.
+    /// </summary>
+    [TestMethod]
+    public void ApplySetInputCommand_ShouldBuildZddSessionAndEnableUndo()
+    {
+        // Arrange
+        var diagramService = new RecordingDiagramService();
+        var viewModel = new WorkbenchViewModel(
+            diagramService,
+            new StubPresetService(),
+            new CommandStack());
+
+        // Act
+        viewModel.SetInputText = "{a,b},{c}";
+        viewModel.ApplySetInputCommand.Execute(null);
+
+        // Assert
+        Assert.AreEqual(1, diagramService.SetBuildRequests.Count, "Applying ZDD input should perform one ZDD build.");
+        Assert.AreEqual(DiagramFamily.ZDD, viewModel.SelectedFamily, "Applying set input should switch the workbench to ZDD.");
+        Assert.IsFalse(viewModel.IsBddInputVisible, "BDD input should be hidden for ZDD.");
+        Assert.IsTrue(viewModel.IsZddInputVisible, "ZDD input should be visible for ZDD.");
+        CollectionAssert.AreEqual(new[] { "a", "b", "c" }, diagramService.SetBuildRequests[0].Variables, "Variables should include set members.");
+        Assert.IsNotNull(viewModel.CurrentSession, "A ZDD session should be applied.");
+        Assert.AreEqual(DiagramFamily.ZDD, viewModel.CurrentSession!.Family, "The current session should be ZDD.");
+        CollectionAssert.AreEqual(new[] { "a", "b" }, viewModel.SetInput[0].ToArray(), "The ZDD input snapshot should update after a successful build.");
+        Assert.IsTrue(viewModel.CanUndo, "ZDD input changes should be undoable.");
+    }
+
+    /// <summary>
+    /// Verifies that ZDD operation commands apply service results and preserve undo/redo behavior.
+    /// </summary>
+    [TestMethod]
+    public void ApplyZddOperationCommand_ShouldApplyOperationAndSupportUndoRedo()
+    {
+        // Arrange
+        var diagramService = new RecordingDiagramService();
+        var viewModel = new WorkbenchViewModel(
+            diagramService,
+            new StubPresetService(),
+            new CommandStack());
+        viewModel.SetInputText = "{a,b},{c}";
+        viewModel.ApplySetInput();
+
+        // Act
+        var before = viewModel.CurrentSession;
+        viewModel.ZddOperationInputText = "{b},{c,d}";
+        viewModel.ApplyZddOperationCommand.Execute("Union");
+
+        // Assert
+        Assert.AreEqual(1, diagramService.ZddOperationRequests.Count, "The operation command should delegate to the ZDD operation service.");
+        Assert.AreEqual(ZddOperation.Union, diagramService.ZddOperationRequests[0], "The command parameter should select the operation.");
+        Assert.AreEqual("digraph ZDD { Union; }", viewModel.CurrentSession!.DotText, "The operation result should be applied.");
+        Assert.IsTrue(viewModel.CanUndo, "The operation result should be undoable.");
+
+        // Act
+        viewModel.UndoCommand.Execute(null);
+        Assert.AreSame(before, viewModel.CurrentSession, "Undo should restore the pre-operation session snapshot.");
+
+        viewModel.RedoCommand.Execute(null);
+        Assert.AreEqual("digraph ZDD { Union; }", viewModel.CurrentSession!.DotText, "Redo should restore the operation result.");
+    }
+
+    /// <summary>
+    /// Verifies that family changes are undoable.
+    /// </summary>
+    [TestMethod]
+    public void SelectedFamily_ZddToBddUndo_ShouldRestoreZdd()
+    {
+        // Arrange
+        var viewModel = new WorkbenchViewModel(
+            new RecordingDiagramService(),
+            new StubPresetService(),
+            new CommandStack());
+
+        // Act
+        viewModel.SelectedFamily = DiagramFamily.ZDD;
+        viewModel.SelectedFamily = DiagramFamily.BDD;
+        viewModel.Undo();
+
+        // Assert
+        Assert.AreEqual(DiagramFamily.ZDD, viewModel.SelectedFamily, "Undo should restore the previous ZDD family.");
+        Assert.IsTrue(viewModel.IsZddInputVisible, "The ZDD input panel state should follow the restored family.");
+    }
+
     private sealed class RecordingDiagramService : IDiagramService
     {
         public List<(string[] Variables, int[] Values, DiagramFamily Family, CancellationToken Token)> BuildRequests { get; } = [];
+        public List<(string[] Variables, IReadOnlyList<IReadOnlyList<string>> Sets, DiagramFamily Family, CancellationToken Token)> SetBuildRequests { get; } = [];
+        public List<ZddOperation> ZddOperationRequests { get; } = [];
 
         public Task<DiagramSession> BuildAsync(string[] variableNames, int[] intValueTable, DiagramFamily family, CancellationToken ct)
         {
@@ -226,15 +320,85 @@ public sealed class WorkbenchViewModelTests
             });
         }
 
+        public Task<DiagramSession> BuildAsync(
+            string[] variableNames,
+            IReadOnlyList<IReadOnlyList<string>> setInput,
+            DiagramFamily family,
+            CancellationToken ct)
+        {
+            var clonedSets = CloneSetInput(setInput);
+            SetBuildRequests.Add(((string[])variableNames.Clone(), clonedSets, family, ct));
+            return Task.FromResult(new DiagramSession
+            {
+                Family = family,
+                VariableNames = (string[])variableNames.Clone(),
+                VariableOrder = Enumerable.Range(0, variableNames.Length).ToArray(),
+                SetInput = clonedSets,
+                DotText = "digraph ZDD { root; }",
+                Statistics = new AppDiagramStatistics
+                {
+                    ReachableNodeCount = 1,
+                    TotalNodeCount = 1,
+                    VariableCount = variableNames.Length,
+                    SetCount = clonedSets.Count,
+                },
+            });
+        }
+
+        public Task<DiagramSession> ApplyZddOperationAsync(ZddOperation operation, CancellationToken ct)
+        {
+            ZddOperationRequests.Add(operation);
+            return Task.FromResult(new DiagramSession
+            {
+                Family = DiagramFamily.ZDD,
+                VariableNames = ["a", "b", "c", "d"],
+                VariableOrder = [0, 1, 2, 3],
+                SetInput = [new[] { "a", "b" }, new[] { "c" }, new[] { "b" }, new[] { "c", "d" }],
+                DotText = "digraph ZDD { " + operation.ToString() + "; }",
+                Statistics = new AppDiagramStatistics
+                {
+                    ReachableNodeCount = 2,
+                    TotalNodeCount = 2,
+                    VariableCount = 4,
+                    SetCount = 4,
+                },
+            });
+        }
+
         public Task<string> GetBdtDotAsync(DiagramSession session, CancellationToken ct)
         {
             return Task.FromResult("digraph BDT { root; }");
+        }
+
+        private static IReadOnlyList<IReadOnlyList<string>> CloneSetInput(IReadOnlyList<IReadOnlyList<string>> setInput)
+        {
+            var clone = new IReadOnlyList<string>[setInput.Count];
+            for (var i = 0; i < setInput.Count; i++)
+            {
+                clone[i] = setInput[i].ToArray();
+            }
+
+            return clone;
         }
     }
 
     private sealed class ThrowingDiagramService : IDiagramService
     {
         public Task<DiagramSession> BuildAsync(string[] variableNames, int[] intValueTable, DiagramFamily family, CancellationToken ct)
+        {
+            throw new InvalidOperationException("build failed");
+        }
+
+        public Task<DiagramSession> BuildAsync(
+            string[] variableNames,
+            IReadOnlyList<IReadOnlyList<string>> setInput,
+            DiagramFamily family,
+            CancellationToken ct)
+        {
+            throw new InvalidOperationException("build failed");
+        }
+
+        public Task<DiagramSession> ApplyZddOperationAsync(ZddOperation operation, CancellationToken ct)
         {
             throw new InvalidOperationException("build failed");
         }

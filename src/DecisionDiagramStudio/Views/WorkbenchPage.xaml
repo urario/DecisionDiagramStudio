@@ -88,8 +88,10 @@
                                         Content="BDD"
                                         Foreground="{ThemeResource DiagramFamilyBDDAccentBrush}"
                                         GroupName="DiagramFamily"
-                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=BDD}"
-                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        Checked="FamilyRadioButton_Checked"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=BDD}"
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}"
+                                        Tag="BDD">
                                         <RadioButton.Resources>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyBDDAccentBrush"/>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyBDDAccentBrush"/>
@@ -107,9 +109,10 @@
                                         Content="ZDD"
                                         Foreground="{ThemeResource DiagramFamilyZDDAccentBrush}"
                                         GroupName="DiagramFamily"
-                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=ZDD}"
-                                        IsEnabled="False"
-                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        Checked="FamilyRadioButton_Checked"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=ZDD}"
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}"
+                                        Tag="ZDD">
                                         <RadioButton.Resources>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyZDDAccentBrush"/>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyZDDAccentBrush"/>
@@ -127,9 +130,11 @@
                                         Content="MTBDD"
                                         Foreground="{ThemeResource DiagramFamilyMTBDDAccentBrush}"
                                         GroupName="DiagramFamily"
-                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=MTBDD}"
+                                        Checked="FamilyRadioButton_Checked"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=MTBDD}"
                                         IsEnabled="False"
-                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}"
+                                        Tag="MTBDD">
                                         <RadioButton.Resources>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyMTBDDAccentBrush"/>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyMTBDDAccentBrush"/>
@@ -147,9 +152,11 @@
                                         Content="ZMTBDD"
                                         Foreground="{ThemeResource DiagramFamilyZMTBDDAccentBrush}"
                                         GroupName="DiagramFamily"
-                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=TwoWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=ZMTBDD}"
+                                        Checked="FamilyRadioButton_Checked"
+                                        IsChecked="{x:Bind ViewModel.SelectedFamily, Mode=OneWay, Converter={StaticResource DiagramFamilyIsCheckedConverter}, ConverterParameter=ZMTBDD}"
                                         IsEnabled="False"
-                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}">
+                                        Style="{StaticResource DiagramFamilyRadioButtonStyle}"
+                                        Tag="ZMTBDD">
                                         <RadioButton.Resources>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStroke" ResourceKey="DiagramFamilyZMTBDDAccentBrush"/>
                                             <StaticResource x:Key="RadioButtonOuterEllipseCheckedStrokePointerOver" ResourceKey="DiagramFamilyZMTBDDAccentBrush"/>
@@ -206,6 +213,7 @@
                     </Border>
 
                     <Border
+                        x:Name="BddTruthTablePanel"
                         BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="6">
@@ -327,6 +335,81 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+
+                    <Border
+                        x:Name="ZddSetInputPanel"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Visibility="Collapsed">
+                        <Grid ColumnDefinitions="4,*">
+                            <Border
+                                Background="{ThemeResource DiagramFamilyZDDAccentBrush}"
+                                CornerRadius="6,0,0,6"/>
+                            <StackPanel
+                                Grid.Column="1"
+                                Padding="14"
+                                Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource DiagramFamilyZDDAccentBrush}"
+                                        Text="ZDD set family"/>
+                                    <Border
+                                        Grid.Column="1"
+                                        Padding="8,2"
+                                        Background="{ThemeResource DiagramFamilyZDDAccentSoftBrush}"
+                                        CornerRadius="4">
+                                        <TextBlock
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{ThemeResource DiagramFamilyZDDAccentBrush}"
+                                            Text="ZDD"/>
+                                    </Border>
+                                </Grid>
+                                <TextBox
+                                    AcceptsReturn="True"
+                                    Header="Sets"
+                                    MinHeight="82"
+                                    PlaceholderText="{}{a,b},{c}"
+                                    Text="{x:Bind ViewModel.SetInputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    TextWrapping="Wrap"/>
+                                <Button
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.ApplySetInputCommand}"
+                                    Content="Build ZDD"/>
+                                <TextBox
+                                    AcceptsReturn="True"
+                                    Header="Operand"
+                                    MinHeight="82"
+                                    PlaceholderText="{}{b},{c,d}"
+                                    Text="{x:Bind ViewModel.ZddOperationInputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    TextWrapping="Wrap"/>
+                                <Grid
+                                    ColumnDefinitions="*,*,*"
+                                    ColumnSpacing="8">
+                                    <Button
+                                        HorizontalAlignment="Stretch"
+                                        Command="{x:Bind ViewModel.ApplyZddOperationCommand}"
+                                        CommandParameter="Union"
+                                        Content="Union"/>
+                                    <Button
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Stretch"
+                                        Command="{x:Bind ViewModel.ApplyZddOperationCommand}"
+                                        CommandParameter="Intersection"
+                                        Content="Intersect"/>
+                                    <Button
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Stretch"
+                                        Command="{x:Bind ViewModel.ApplyZddOperationCommand}"
+                                        CommandParameter="Difference"
+                                        Content="Diff"/>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 
@@ -349,11 +432,32 @@
                             Text="{x:Bind ExplanationViewModel.ExplanationText, Mode=OneWay}"
                             TextWrapping="WrapWholeWords"/>
                     </StackPanel>
-                    <Button
-                        x:Name="ReductionToggleButton"
+                    <StackPanel
                         Grid.Column="1"
                         VerticalAlignment="Bottom"
-                        Command="{x:Bind DiagramViewModel.ToggleReductionCommand}"/>
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            Command="{x:Bind ViewModel.UndoCommand}"
+                            Content="Undo"
+                            IsEnabled="{x:Bind ViewModel.CanUndo, Mode=OneWay}"/>
+                        <Button
+                            Command="{x:Bind ViewModel.RedoCommand}"
+                            Content="Redo"
+                            IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}"/>
+                        <Button
+                            Click="CopyTruthTableCsvButton_Click"
+                            Content="Copy CSV"/>
+                        <Button
+                            Click="SaveSvgButton_Click"
+                            Content="Save SVG"/>
+                        <Button
+                            Click="SaveDotButton_Click"
+                            Content="Save DOT"/>
+                        <Button
+                            x:Name="ReductionToggleButton"
+                            Command="{x:Bind DiagramViewModel.ToggleReductionCommand}"/>
+                    </StackPanel>
                 </Grid>
 
                 <Grid Grid.Row="1">

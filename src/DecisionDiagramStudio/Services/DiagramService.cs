@@ -28,6 +28,9 @@ public sealed class DiagramService : IDiagramService
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private DecisionDiagramManager _manager;
     private Bdd? _currentBdd;
+    private Zdd? _previousZdd;
+    private Zdd? _currentZdd;
+    private string[] _currentZddVariableNames = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DiagramService"/> class with default library options.
@@ -84,7 +87,7 @@ public sealed class DiagramService : IDiagramService
 
             if (family != DiagramFamily.BDD)
             {
-                throw new NotSupportedException("Only BDD builds are supported in v0.1.");
+                throw new NotSupportedException("This truth-table overload currently supports only BDD builds. Use the set-family overload for ZDD.");
             }
 
             await _semaphore.WaitAsync(ct).ConfigureAwait(false);
@@ -136,6 +139,129 @@ public sealed class DiagramService : IDiagramService
                 family,
                 variableCount,
                 rowCount,
+                ex.GetType().Name);
+            throw;
+        }
+        finally
+        {
+            if (hasSemaphore)
+            {
+                _semaphore.Release();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<DiagramSession> BuildAsync(
+        string[] variableNames,
+        IReadOnlyList<IReadOnlyList<string>> setInput,
+        DiagramFamily family,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(variableNames);
+        ArgumentNullException.ThrowIfNull(setInput);
+
+        var stopwatch = Stopwatch.StartNew();
+        var variableCount = variableNames.Length;
+        var setCount = setInput.Count;
+        var hasSemaphore = false;
+
+        _logger.LogDebug(
+            "ZDD build requested. Family={Family} VariableCount={VariableCount} SetInputCount={SetInputCount}",
+            family,
+            variableCount,
+            setCount);
+
+        try
+        {
+            ValidateVariableNames(variableNames);
+            ValidateSetInput(variableNames, setInput);
+
+            if (family != DiagramFamily.ZDD)
+            {
+                throw new NotSupportedException("Only ZDD set-family builds are supported by this overload.");
+            }
+
+            await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+            hasSemaphore = true;
+
+            var session = await Task.Run(() => BuildZddSession(variableNames, setInput, updateHistory: true), ct).ConfigureAwait(false);
+            _logger.LogDebug(
+                "ZDD build completed. VariableCount={VariableCount} SetCount={SetCount} ReachableNodeCount={ReachableNodeCount} ElapsedMs={ElapsedMs}",
+                session.Statistics.VariableCount,
+                session.Statistics.SetCount,
+                session.Statistics.ReachableNodeCount,
+                stopwatch.ElapsedMilliseconds);
+            return session;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            _logger.LogWarning(
+                "ZDD build request failed validation. Family={Family} VariableCount={VariableCount} SetInputCount={SetInputCount} ExceptionType={ExceptionType}",
+                family,
+                variableCount,
+                setCount,
+                ex.GetType().Name);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                "ZDD build failed. Family={Family} VariableCount={VariableCount} SetInputCount={SetInputCount} ExceptionType={ExceptionType}",
+                family,
+                variableCount,
+                setCount,
+                ex.GetType().Name);
+            throw;
+        }
+        finally
+        {
+            if (hasSemaphore)
+            {
+                _semaphore.Release();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<DiagramSession> ApplyZddOperationAsync(ZddOperation operation, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var hasSemaphore = false;
+
+        _logger.LogDebug("ZDD operation requested. Operation={Operation}", operation);
+
+        try
+        {
+            await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+            hasSemaphore = true;
+
+            if (_previousZdd is null || _currentZdd is null)
+            {
+                throw new InvalidOperationException("Two ZDD operands must be built before applying a set-family operation.");
+            }
+
+            var session = await Task.Run(() => ApplyZddOperation(operation), ct).ConfigureAwait(false);
+            _logger.LogDebug(
+                "ZDD operation completed. Operation={Operation} SetCount={SetCount} ElapsedMs={ElapsedMs}",
+                operation,
+                session.Statistics.SetCount,
+                stopwatch.ElapsedMilliseconds);
+            return session;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                "ZDD operation failed. Operation={Operation} ExceptionType={ExceptionType}",
+                operation,
                 ex.GetType().Name);
             throw;
         }
@@ -305,6 +431,31 @@ public sealed class DiagramService : IDiagramService
         }
     }
 
+    private static void ValidateSetInput(string[] variableNames, IReadOnlyList<IReadOnlyList<string>> setInput)
+    {
+        ArgumentNullException.ThrowIfNull(variableNames);
+        ArgumentNullException.ThrowIfNull(setInput);
+
+        var allowed = variableNames.ToHashSet(StringComparer.Ordinal);
+        for (var setIndex = 0; setIndex < setInput.Count; setIndex++)
+        {
+            var set = setInput[setIndex] ?? throw new ArgumentException("ZDD set input may not contain null sets.", nameof(setInput));
+            for (var memberIndex = 0; memberIndex < set.Count; memberIndex++)
+            {
+                var member = set[memberIndex];
+                if (member is null || !VariableNameRegex.IsMatch(member))
+                {
+                    throw new ArgumentException("ZDD set members must match ^[a-zA-Z_][a-zA-Z0-9_]*$.", nameof(setInput));
+                }
+
+                if (!allowed.Contains(member))
+                {
+                    throw new ArgumentException("ZDD set members must be declared in variableNames: " + member, nameof(setInput));
+                }
+            }
+        }
+    }
+
     private static string BuildBdtDot(string[] variableNames, int[] values)
     {
         var variableCount = variableNames.Length;
@@ -377,6 +528,87 @@ public sealed class DiagramService : IDiagramService
         };
     }
 
+    private DiagramSession BuildZddSession(
+        string[] variableNames,
+        IReadOnlyList<IReadOnlyList<string>> setInput,
+        bool updateHistory)
+    {
+        EnsureZddVariableSchema(variableNames);
+        var zddManager = _manager.Zdd;
+        for (var i = 0; i < variableNames.Length; i++)
+        {
+            _ = zddManager.GetOrAddVariable(variableNames[i]);
+        }
+
+        var normalizedInput = CloneSetInput(setInput);
+        var zdd = zddManager.MakeFamily(normalizedInput);
+        if (updateHistory)
+        {
+            _previousZdd = _currentZdd;
+            _currentZdd = zdd;
+            _currentZddVariableNames = (string[])variableNames.Clone();
+        }
+
+        return MaterializeZddSession(zdd, variableNames, normalizedInput);
+    }
+
+    private DiagramSession ApplyZddOperation(ZddOperation operation)
+    {
+        var zddManager = _manager.Zdd;
+        var result = operation switch
+        {
+            ZddOperation.Union => zddManager.Union(_previousZdd!.Value, _currentZdd!.Value),
+            ZddOperation.Intersection => zddManager.Intersect(_previousZdd!.Value, _currentZdd!.Value),
+            ZddOperation.Difference => zddManager.Difference(_previousZdd!.Value, _currentZdd!.Value),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported ZDD operation."),
+        };
+
+        _previousZdd = _currentZdd;
+        _currentZdd = result;
+        var setInput = EnumerateZddSetInput(result);
+        return MaterializeZddSession(result, _currentZddVariableNames, setInput);
+    }
+
+    private DiagramSession MaterializeZddSession(
+        Zdd zdd,
+        string[] variableNames,
+        IReadOnlyList<IReadOnlyList<string>> setInput)
+    {
+        var zddManager = _manager.Zdd;
+        var setCount = zddManager.CountSets(zdd);
+        var statistics = AppDiagramStatistics.ForZdd(zddManager.GetStatistics(zdd), setCount);
+        var dotText = ZddDiagnostics.ToDot(zddManager, zdd);
+        _logger.LogTrace(
+            "ZDD session materialized. VariableCount={VariableCount} DotLength={DotLength} SetCount={SetCount}",
+            variableNames.Length,
+            dotText.Length,
+            setCount);
+
+        return new DiagramSession
+        {
+            Family = DiagramFamily.ZDD,
+            VariableNames = (string[])variableNames.Clone(),
+            VariableOrder = Enumerable.Range(0, variableNames.Length).ToArray(),
+            IntValueTable = null,
+            SetInput = CloneSetInput(setInput),
+            DotText = dotText,
+            Statistics = statistics,
+            LastModified = DateTime.UtcNow,
+        };
+    }
+
+    private IReadOnlyList<IReadOnlyList<string>> EnumerateZddSetInput(Zdd zdd)
+    {
+        var sets = _manager.Zdd.EnumerateSets(zdd);
+        var result = new List<IReadOnlyList<string>>(sets.Count);
+        foreach (var set in sets)
+        {
+            result.Add(set.Select(id => _manager.Zdd.GetVariableName(id)).ToArray());
+        }
+
+        return result;
+    }
+
     private void EnsureBddVariableSchema(string[] variableNames)
     {
         var bddManager = _manager.Bdd;
@@ -400,7 +632,50 @@ public sealed class DiagramService : IDiagramService
 
         _manager = new DecisionDiagramManager(_options);
         _currentBdd = null;
+        _previousZdd = null;
+        _currentZdd = null;
+        _currentZddVariableNames = [];
         _logger.LogDebug("Decision diagram manager reset for a new BDD variable schema. VariableCount={VariableCount}", variableNames.Length);
+    }
+
+    private void EnsureZddVariableSchema(string[] variableNames)
+    {
+        var zddManager = _manager.Zdd;
+        if (zddManager.VariableCount == variableNames.Length)
+        {
+            var sameSchema = true;
+            for (var i = 0; i < variableNames.Length; i++)
+            {
+                if (!StringComparer.Ordinal.Equals(zddManager.GetVariableName(new VariableId(i)), variableNames[i]))
+                {
+                    sameSchema = false;
+                    break;
+                }
+            }
+
+            if (sameSchema)
+            {
+                return;
+            }
+        }
+
+        _manager = new DecisionDiagramManager(_options);
+        _currentBdd = null;
+        _previousZdd = null;
+        _currentZdd = null;
+        _currentZddVariableNames = [];
+        _logger.LogDebug("Decision diagram manager reset for a new ZDD variable schema. VariableCount={VariableCount}", variableNames.Length);
+    }
+
+    private static IReadOnlyList<IReadOnlyList<string>> CloneSetInput(IReadOnlyList<IReadOnlyList<string>> setInput)
+    {
+        var clone = new IReadOnlyList<string>[setInput.Count];
+        for (var i = 0; i < setInput.Count; i++)
+        {
+            clone[i] = setInput[i].ToArray();
+        }
+
+        return clone;
     }
 
     private static int ConvertLeafOffsetToTruthTableMask(int leafOffset, int variableCount)

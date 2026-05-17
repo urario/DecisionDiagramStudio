@@ -15,6 +15,9 @@ public partial class App : Application
     /// <summary>アプリ全体で共有する DI サービスプロバイダー。OnLaunched 後に有効になる。</summary>
     public static IServiceProvider Services { get; private set; } = null!;
 
+    /// <summary>Gets the active main window for WinUI picker initialization.</summary>
+    public static Window? MainAppWindow { get; private set; }
+
     private Window? _window;
     private ILogger<App>? _logger;
 
@@ -36,6 +39,7 @@ public partial class App : Application
         _logger.LogInformation("Application launch started.");
 
         _window = new MainWindow();
+        MainAppWindow = _window;
         _window.Activate();
         _logger.LogInformation("Application main window activated.");
     }
@@ -47,6 +51,8 @@ public partial class App : Application
         services.AddSingleton<IGraphvizService, GraphvizService>();
         services.AddSingleton<IPresetService, PresetService>();
         services.AddSingleton<ISvgWebViewDocumentSource, SvgWebViewDocumentSource>();
+        services.AddSingleton<IClipboardService, SystemClipboardService>();
+        services.AddSingleton<IExportService, ExportService>();
         services.AddSingleton<Commands.CommandStack>();
         services.AddSingleton<WorkbenchViewModel>();
         services.AddSingleton<DiagramPanelViewModel>();

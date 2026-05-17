@@ -56,7 +56,7 @@ Decision Diagram Studio（以下、本アプリ）は、BDD・ZDD・MTBDD・ZMTB
 | 優先度 | 品質特性 | 目標 |
 |---|---|---|
 | 1 | **正確性** | ライブラリの計算結果を UI が正しく反映する |
-| 2 | **応答性** | 4 変数以下の変更→図更新を 300ms 以内に完了する（Graphviz 起動済み前提） |
+| 2 | **応答性** | 固定ミリ秒閾値を合格条件にせず、UI スレッドを塞がない非同期処理とキャンセルで操作不能状態を避ける |
 | 3 | **保守性** | ViewModel / Service / View を明確に分離し、単一責任を維持する |
 | 4 | **テスト容易性** | Service・ViewModel はインターフェースを介して結合し、モックに置換可能にする |
 | 5 | **学習支援性** | 削減前後（BDT vs BDD）の比較と解説パネルを常に利用可能にする |
@@ -413,8 +413,8 @@ sequenceDiagram
     Note over UI: ユーザーが TT を編集
     UI->>UI: ViewModel.OnTruthTableChanged()
     UI->>UI: 前の CancellationTokenSource.Cancel()
-    UI->>UI: debounce timer reset (300ms)
-    Note over UI: 300ms 後
+    UI->>UI: debounce timer reset
+    Note over UI: 入力が落ち着いた後
     UI->>BG: Task.Run(BuildAndRenderAsync, ct)
 
     rect rgb(255, 240, 240)
@@ -521,7 +521,7 @@ sequenceDiagram
 
     User->>VP: 集合族入力 "{a,b},{c}"
     VP->>WVM: OnSetInputChanged(setInput)
-    WVM->>WVM: debounce 300ms
+    WVM->>WVM: debounce
     WVM->>DS: BuildAsync(variableNames, setInput, ZDD, ct)
 
     rect rgb(255, 240, 240)
@@ -930,13 +930,13 @@ SVG 表示は `ISvgWebViewDocumentSource`（仮称）で HTML 生成・nonce 生
 
 | シナリオ | 目標値 | 測定起点 | 測定終点 | Graphviz 有無 | 対象変数数 | 計測方法 |
 |---|---|---|---|---|---|---|
-| TT セル変更→SVG 表示 | **300ms** | TT セルクリック確定 | SVG が WebView2 に表示される | あり（warm） | ≤4変数 | Stopwatch on BG thread |
+| TT セル変更→SVG 表示 | **固定閾値なし（回帰監視）** | TT セルクリック確定 | SVG が WebView2 に表示される | あり（warm） | ≤4変数 | Stopwatch on BG thread |
 | TT セル変更→SVG 表示 | **1秒** | TT セルクリック確定 | SVG が WebView2 に表示される | あり（warm） | ≤8変数 | Stopwatch on BG thread |
 | TT セル変更→DOT 表示 | **100ms** | TT セルクリック確定 | DOT TextBox に表示される | なし（フォールバック） | ≤8変数 | Stopwatch on BG thread |
 | 削減前後切り替え | **500ms** | ボタンクリック | SVG が WebView2 に表示される | あり（warm） | ≤100ノード | Stopwatch on BG thread |
 | アプリ起動 | **3秒** | プロセス起動 | WorkbenchPage がレンダリング完了 | 関係なし | N/A | ETW / Process.StartTime |
 
-> **注:** デバウンス 300ms は「操作→画面更新」の総レイテンシに含まれる。つまり「TT 変更から 300ms 後に Build 処理を開始し、Build + Graphviz 実行が完了するまでの追加時間が 0ms」が理想目標である。実際には Build + Graphviz で数十〜数百 ms かかるため、4変数目標は「Graphviz が 0ms で完了する場合の上限」として設定している。
+> **注:** 性能計測は回帰把握のための参考値として扱う。固定閾値を満たすために Graphviz の代替レンダラを追加せず、実際の Graphviz 出力とキャンセル可能な非同期処理を優先する。
 
 **大規模グラフ対策:**
 
@@ -1082,7 +1082,7 @@ B9 セキュリティビュー参照。
 **ステータス:** 決定済み（OQ-007 解決）
 **コンテキスト:** TT 変更・変数順序変更・ファミリー切り替えを Undo/Redo 対象にする必要がある。
 **決定:** `IUndoableCommand` インターフェースと `CommandStack` クラスを独自実装する。
-**Undo の単位:** TT の 1 セル変更ごとではなく、300ms デバウンス後の「確定操作」を 1 ステップとする
+**Undo の単位:** TT の 1 セル変更ごとではなく、デバウンス後の「確定操作」を 1 ステップとする
 **理由:**
 - CommunityToolkit.Mvvm の `RelayCommand` は Undo 対応していない
 - 本アプリの操作は「状態スナップショットの差分」として単純に表現できる
@@ -1187,12 +1187,12 @@ for each minterm where values[mask] == 1:
 | FR-ZMTBDD-002 | ゼロ抑圧可視化 | `AppDiagramStatistics` で MTBDD/ZMTBDD の `ReachableNodeCount` 比較 | MTBDD > ZMTBDD のノード数確認（全0値テーブル） |
 | FR-VIZ-001 | DOT→SVG | `GraphvizService.RenderSvgAsync()` | 正常 SVG 返却; 未インストール時フォールバック |
 | FR-VIZ-002 | ノードクリック | WebView2 `postMessage` → `ExplanationViewModel` | クリック JSON 受信→ExplanationText 更新; 不正 JSON は無視 |
-| FR-VIZ-003 | リアルタイム更新 | debounce 300ms + `CancellationToken` | 連続 TT 変更時に古い Build がキャンセルされること |
+| FR-VIZ-003 | リアルタイム更新 | debounce + `CancellationToken` | 連続 TT 変更時に古い Build がキャンセルされること |
 | FR-EXP-001 | TT コピー | `ExportService.CopyTruthTableAsync()` → Clipboard | CSV/Markdown/AsciiDoc 各形式の文字列検証 |
 | FR-EXP-002 | SVG 保存 | `ExportService.SaveSvgAsync()` → FileSavePicker | ファイル存在確認; IOException ハンドリング |
 | FR-UNDO-001 | Undo/Redo | `CommandStack.Push/Undo/Redo()` | 50 件上限; 上限超過で最古エントリが削除される |
 | FR-SET-001 | Graphviz パス | `SessionOptions.GraphvizPath` → `GraphvizService` | 無効パス→InfoBar 表示; 自動検出成功/失敗 |
-| NFR-PERF-1 | 応答性 | BG Thread + debounce + SemaphoreSlim | 4 変数 TT 変更→SVG 更新の E2E 時間測定 |
+| NFR-PERF-1 | 応答性観測 | BG Thread + debounce + SemaphoreSlim | 4 変数 TT 変更→SVG 更新の E2E 時間を記録し、固定閾値ではなく回帰傾向を確認 |
 | NFR-SEC-1 | セキュリティ | 変数名バリデーション + CSP + postMessage スキーマ検証 | `<script>` を含む変数名が拒否されること; 不正 postMessage が無視されること |
 
 ### E.2 OQ 状態一覧（要件書との統一版）

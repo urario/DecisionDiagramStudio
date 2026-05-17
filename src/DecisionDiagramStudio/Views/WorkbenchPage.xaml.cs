@@ -471,8 +471,6 @@ public sealed partial class WorkbenchPage : Page
 #endif
         coreWebView.WebMessageReceived -= OnDiagramWebMessageReceived;
         coreWebView.WebMessageReceived += OnDiagramWebMessageReceived;
-        coreWebView.NavigationStarting -= OnDiagramNavigationStarting;
-        coreWebView.NavigationStarting += OnDiagramNavigationStarting;
     }
 
     private void UnwireDiagramWebViewEvents()
@@ -482,9 +480,7 @@ public sealed partial class WorkbenchPage : Page
             return;
         }
 
-        var coreWebView = DiagramWebView.CoreWebView2;
-        coreWebView.WebMessageReceived -= OnDiagramWebMessageReceived;
-        coreWebView.NavigationStarting -= OnDiagramNavigationStarting;
+        DiagramWebView.CoreWebView2.WebMessageReceived -= OnDiagramWebMessageReceived;
         _isWebViewReady = false;
         _webViewInitializationTask = null;
     }
@@ -503,15 +499,6 @@ public sealed partial class WorkbenchPage : Page
         }
 
         _logger.LogWarning("Diagram WebView2 message failed schema validation.");
-    }
-
-    private void OnDiagramNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
-    {
-        if (!string.Equals(args.Uri, "about:blank", StringComparison.OrdinalIgnoreCase))
-        {
-            args.Cancel = true;
-            _logger.LogWarning("Blocked unexpected WebView2 navigation. Uri={Uri}", args.Uri);
-        }
     }
 
     private async Task NavigateDiagramWebViewToStringAsync(string html)

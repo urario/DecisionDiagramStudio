@@ -18,6 +18,10 @@ Decision Diagram Studio は、Decision Diagram を手元で編集しながら構
 
 https://github.com/user-attachments/assets/9d4254a6-95eb-4a3b-9cc0-1037a586f2e5
 
+### ZDD 
+
+https://github.com/user-attachments/assets/d22bec2c-7926-498d-96e0-a3ef0cae3b5e
+
 
 
 ## Features
